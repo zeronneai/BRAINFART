@@ -6,7 +6,7 @@ interface Props {
   open: boolean
   onClose: () => void
   title?: string
-  children: ReactNode
+  children?: ReactNode
 }
 
 /**

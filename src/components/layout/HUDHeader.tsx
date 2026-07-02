@@ -4,6 +4,7 @@ import { levelFromXP } from '@/lib/xp'
 import { LevelRing } from '@/components/ui/LevelRing'
 import { XPBar } from '@/components/ui/XPBar'
 import { StreakFlame } from '@/components/ui/StreakFlame'
+import { Avatar } from '@/components/Avatar'
 import { isDemoMode } from '@/lib/supabase'
 
 export function HUDHeader() {
@@ -20,7 +21,17 @@ export function HUDHeader() {
     >
       <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-3">
         <Link to="/profile" className="shrink-0 transition-transform active:scale-95">
-          <LevelRing level={info.level} progress={info.progress} />
+          <LevelRing level={info.level} progress={info.progress} size={52}>
+            {profile.character ? (
+              <div className="h-full w-full bg-surface-2">
+                <Avatar character={profile.character} size={48} pose="idle" comboAura={combo} />
+              </div>
+            ) : (
+              <div className="flex h-full w-full items-center justify-center bg-surface-2">
+                <span className="display-num text-base text-body">{info.level}</span>
+              </div>
+            )}
+          </LevelRing>
         </Link>
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-2">

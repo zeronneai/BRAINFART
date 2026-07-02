@@ -7,12 +7,16 @@
 
 import { supabase } from './supabase'
 import { useGame } from '@/store/gameStore'
+import type { Character, CreatorClass } from './character'
 import type { Idea, Quest } from './types'
+import type { SpotRuntime } from '@/store/gameStore'
 
 let started = false
+let currentUserId: string | null = null
 let timer: ReturnType<typeof setTimeout> | null = null
 
 export function startCloudSync(userId: string) {
+  currentUserId = userId
   if (!supabase || started) return
   started = true
 
@@ -24,17 +28,47 @@ export function startCloudSync(userId: string) {
   })
 }
 
+/** Wipe every cloud row for the signed-in user (the "New Game" reset). */
+export async function wipeCloud(): Promise<void> {
+  if (!supabase || !currentUserId) return
+  const uid = currentUserId
+  await Promise.all([
+    supabase.from('quests').delete().eq('user_id', uid),
+    supabase.from('ideas').delete().eq('user_id', uid),
+    supabase.from('spot_conquests').delete().eq('user_id', uid),
+    supabase.from('idea_feedback').delete().eq('user_id', uid),
+    supabase.from('trend_briefings').delete().eq('user_id', uid),
+    supabase.from('user_badges').delete().eq('user_id', uid),
+  ])
+  await supabase
+    .from('profiles')
+    .update({
+      xp: 0,
+      current_streak: 0,
+      longest_streak: 0,
+      streak_freezes: 0,
+      last_post_date: null,
+      ideas_rolled: 0,
+      legendaries_rolled: 0,
+      character: null,
+      creator_class: null,
+      onboarding_step: 0,
+    })
+    .eq('user_id', uid)
+}
+
 async function hydrate(userId: string) {
   if (!supabase) return
-  const [{ data: profile }, { data: ideas }, { data: quests }] = await Promise.all([
-    supabase.from('profiles').select('*').eq('user_id', userId).maybeSingle(),
-    supabase.from('ideas').select('*').eq('user_id', userId),
-    supabase.from('quests').select('*, ideas(*)').eq('user_id', userId),
-  ])
+  const [{ data: profile }, { data: ideas }, { data: quests }, { data: conquests }] =
+    await Promise.all([
+      supabase.from('profiles').select('*').eq('user_id', userId).maybeSingle(),
+      supabase.from('ideas').select('*').eq('user_id', userId),
+      supabase.from('quests').select('*, ideas(*)').eq('user_id', userId),
+      supabase.from('spot_conquests').select('*').eq('user_id', userId),
+    ])
 
   const state = useGame.getState()
   if (!profile && (!ideas || ideas.length === 0)) {
-    // fresh cloud save — push the local state up instead
     void push(userId)
     return
   }
@@ -44,6 +78,15 @@ async function hydrate(userId: string) {
   const hydratedQuests: Quest[] = (quests ?? [])
     .map((q) => rowToQuest(q, ideaById))
     .filter((q): q is Quest => q !== null)
+
+  const spotStates: Record<string, SpotRuntime> = {}
+  for (const c of conquests ?? []) {
+    spotStates[c.spot_id] = {
+      state: c.state,
+      conquered_at: c.conquered_at ?? null,
+      quest_id: c.quest_id ?? null,
+    }
+  }
 
   state.hydrateFromCloud({
     profile: profile
@@ -56,10 +99,16 @@ async function hydrate(userId: string) {
           lastPostDate: profile.last_post_date ?? null,
           ideasRolled: profile.ideas_rolled ?? 0,
           legendariesRolled: profile.legendaries_rolled ?? 0,
+          character: (profile.character as Character | null) ?? state.profile.character,
+          creatorClass: (profile.creator_class as CreatorClass | null) ?? state.profile.creatorClass,
+          accentPref: profile.accent_pref ?? state.profile.accentPref,
+          instagramHandle: profile.instagram_handle ?? state.profile.instagramHandle,
         }
       : state.profile,
     ideas: hydratedIdeas.length > 0 ? hydratedIdeas : state.ideas,
     quests: hydratedQuests.length > 0 ? hydratedQuests : state.quests,
+    spotStates: Object.keys(spotStates).length > 0 ? spotStates : state.spotStates,
+    onboardingStep: profile?.onboarding_step ?? state.onboardingStep,
   })
 }
 
@@ -78,6 +127,11 @@ async function push(userId: string) {
         last_post_date: s.profile.lastPostDate,
         ideas_rolled: s.profile.ideasRolled,
         legendaries_rolled: s.profile.legendariesRolled,
+        character: s.profile.character,
+        creator_class: s.profile.creatorClass,
+        accent_pref: s.profile.accentPref,
+        instagram_handle: s.profile.instagramHandle,
+        onboarding_step: s.onboardingStep,
       },
       { onConflict: 'user_id' },
     )
@@ -99,6 +153,7 @@ async function push(userId: string) {
         difficulty: i.difficulty,
         xp_reward: i.xp_reward,
         status: i.status,
+        script: i.script ?? null,
         created_at: i.created_at,
       }))
     if (ideaRows.length > 0) await supabase.from('ideas').upsert(ideaRows)
@@ -117,6 +172,16 @@ async function push(userId: string) {
       created_at: q.created_at,
     }))
     if (questRows.length > 0) await supabase.from('quests').upsert(questRows)
+
+    const conquestRows = Object.entries(s.spotStates).map(([spot_id, r]) => ({
+      user_id: userId,
+      spot_id,
+      state: r.state,
+      conquered_at: r.conquered_at,
+      quest_id: r.quest_id,
+    }))
+    if (conquestRows.length > 0)
+      await supabase.from('spot_conquests').upsert(conquestRows, { onConflict: 'user_id,spot_id' })
 
     if (s.feedback.length > 0) {
       await supabase.from('idea_feedback').upsert(
@@ -148,6 +213,7 @@ function rowToIdea(row: any): Idea {
     difficulty: row.difficulty,
     xp_reward: row.xp_reward,
     status: row.status,
+    script: row.script ?? null,
     created_at: row.created_at,
   }
 }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { MapContainer, Marker, Polygon, TileLayer } from 'react-leaflet'
 import type { Map as LeafletMap } from 'leaflet'
 import { divIcon } from 'leaflet'
@@ -15,6 +15,7 @@ import {
   type ZoneKey,
 } from '@/lib/spots'
 import { SpotSheet } from './SpotSheet'
+import { COPY } from '@/lib/copy'
 import { cn } from '@/lib/utils'
 
 function pinIcon(state: SpotState, justConquered: boolean) {
@@ -33,19 +34,33 @@ export function MapScreen() {
   const [map, setMap] = useState<LeafletMap | null>(null)
   const [selected, setSelected] = useState<SpotDef | null>(null)
   const [userPos, setUserPos] = useState<[number, number] | null>(null)
+  const mounted = useRef(true)
+
+  useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+    }
+  }, [])
 
   const stateOf = (id: string): SpotState => spotStates[id]?.state ?? 'suggested'
 
-  // geolocation: center on the creator, fall back to El Paso center
+  // geolocation: center on the creator, fall back to El Paso center.
+  // The async callback can resolve after the map unmounts on navigation —
+  // guard against setView on a torn-down Leaflet instance (_leaflet_pos).
   useEffect(() => {
-    if (!navigator.geolocation) return
+    if (!map || !navigator.geolocation) return
     navigator.geolocation.getCurrentPosition(
       (pos) => {
+        if (!mounted.current) return
         const p: [number, number] = [pos.coords.latitude, pos.coords.longitude]
-        // only recenter if they're actually in the borderland (~80km)
         if (distanceKm(p, EL_PASO_CENTER) < 80) {
           setUserPos(p)
-          map?.setView(p, 12)
+          try {
+            if (map.getContainer().isConnected) map.setView(p, 12, { animate: false })
+          } catch {
+            /* map already unmounted */
+          }
         }
       },
       () => {},
@@ -87,22 +102,26 @@ export function MapScreen() {
     if (!map || spots.length === 0) return
     const lat = spots.reduce((s, p) => s + p.lat, 0) / spots.length
     const lng = spots.reduce((s, p) => s + p.lng, 0) / spots.length
-    map.flyTo([lat, lng], 13, { duration: 0.8 })
+    try {
+      map.setView([lat, lng], 13, { animate: false })
+    } catch {
+      /* map animating/unmounting */
+    }
   }
 
   return (
     <div className="space-y-6">
       <div className="flex items-baseline justify-between">
-        <h1 className="font-display text-2xl uppercase tracking-wide text-body">El Territorio</h1>
-        <span className="hud-label">paint the map</span>
+        <h1 className="font-display text-2xl uppercase tracking-wide text-body">{COPY.map.title}</h1>
+        <span className="hud-label">{COPY.map.subtitle}</span>
       </div>
 
       {/* conquest stats strip */}
       <div className="grid grid-cols-3 gap-2">
         {[
-          { label: 'Spots conquered', value: `${totals.conquered}/${SPOTS.length}` },
-          { label: 'Zones cleared', value: totals.zonesCleared },
-          { label: 'Farthest conquest', value: `${totals.farthest.toFixed(1)} km` },
+          { label: COPY.map.statSpots, value: `${totals.conquered}/${SPOTS.length}` },
+          { label: COPY.map.statZones, value: totals.zonesCleared },
+          { label: COPY.map.statFarthest, value: `${totals.farthest.toFixed(1)} km` },
         ].map((s) => (
           <div key={s.label} className="glass p-4 text-center">
             <p className="display-num text-xl text-body">{s.value}</p>
@@ -125,7 +144,7 @@ export function MapScreen() {
                   cleared
                     ? 'holo border-legendary/50 text-legendary'
                     : z.conquered > 0
-                      ? 'border-acid/40 text-acid'
+                      ? 'border-[#22C55E]/50 text-[#22C55E]'
                       : 'border-line text-muted hover:text-body',
                 )}
               >
@@ -149,26 +168,34 @@ export function MapScreen() {
           className="h-full w-full"
           zoomControl={false}
           attributionControl
+          // disable animations that schedule requestAnimationFrame callbacks —
+          // those fire after React tears down the container on fast navigation
+          // and throw `_leaflet_pos` (uncatchable by React error boundaries)
+          fadeAnimation={false}
+          zoomAnimation={false}
+          markerZoomAnimation={false}
         >
           <TileLayer url={MAP_PROVIDER.tileUrl} attribution={MAP_PROVIDER.attribution} maxZoom={MAP_PROVIDER.maxZoom} />
           {ZONES.map((z) => {
             const stat = zoneStats.find((s) => s.key === z.key)!
+            const clr = stat.total > 0 && stat.conquered === stat.total
             return (
               <Polygon
                 key={z.key}
                 positions={z.polygon}
                 pathOptions={{
-                  color: 'rgba(182,255,46,0.25)',
+                  // tint shifts toward green as conquest % rises; gold only at 100%
+                  color: clr ? 'rgba(255,197,59,0.5)' : 'rgba(34,197,94,0.28)',
                   weight: 1,
-                  fillColor: '#b6ff2e',
-                  fillOpacity: 0.04 + stat.pct * 0.18, // tint intensifies with conquest
+                  fillColor: clr ? '#FFC53B' : '#22C55E',
+                  fillOpacity: clr ? 0.24 : 0.04 + stat.pct * 0.2,
                 }}
               />
             )
           })}
           {SPOTS.map((spot) => (
             <Marker
-              key={`${spot.id}-${stateOf(spot.id)}`}
+              key={spot.id}
               position={[spot.lat, spot.lng]}
               icon={pinIcon(stateOf(spot.id), justConquered === spot.id)}
               eventHandlers={{ click: () => setSelected(spot) }}
@@ -177,9 +204,7 @@ export function MapScreen() {
         </MapContainer>
       </div>
 
-      <p className="text-center text-xs text-muted">
-        Tap a pin: dim = suggested spot, green = active quest, gold = conquered.
-      </p>
+      <p className="text-center text-xs text-muted">{COPY.map.legend}</p>
 
       <SpotSheet spot={selected} onClose={() => setSelected(null)} />
     </div>

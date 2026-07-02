@@ -3,13 +3,14 @@ import { motion } from 'framer-motion'
 import { useGame } from '@/store/gameStore'
 import { buildChallenges, countdown, formatCountdown, type Challenge } from '@/lib/challenges'
 import { spotById } from '@/lib/spots'
+import { COPY } from '@/lib/copy'
 import { cn } from '@/lib/utils'
 
 const KIND_STYLE: Record<Challenge['kind'], { label: string; icon: string }> = {
-  daily: { label: 'DAILY RETO', icon: '⚡' },
-  weekly: { label: 'WEEKLY', icon: '📆' },
-  zone: { label: 'ZONE QUEST', icon: '🗺' },
-  event: { label: 'EVENT', icon: '⏰' },
+  daily: { label: COPY.challenges.kinds.daily, icon: '⚡' },
+  weekly: { label: COPY.challenges.kinds.weekly, icon: '📆' },
+  zone: { label: COPY.challenges.kinds.zone, icon: '🗺' },
+  event: { label: COPY.challenges.kinds.event, icon: '⏰' },
 }
 
 /** Horizontal challenge rail on Home — the "more game" layer. */
@@ -39,10 +40,10 @@ export function ChallengesRail() {
   return (
     <section>
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="hud-label">Retos</h2>
+        <h2 className="hud-label">{COPY.challenges.title}</h2>
         {combo && comboUntil && (
           <span className="rounded-chip border border-legendary/50 bg-legendary/10 px-2.5 py-1 text-[10px] font-bold text-legendary">
-            🔥 COMBO ×1.5 — {formatCountdown(countdown(comboUntil) ?? 0)}
+            {COPY.challenges.combo} — {formatCountdown(countdown(comboUntil) ?? 0)}
           </span>
         )}
       </div>
@@ -121,13 +122,15 @@ function ChallengeCard({
       </div>
 
       {claimed ? (
-        <p className="hud-label mt-3 text-center !text-acid">✓ CLAIMED</p>
+        <p className="hud-label mt-3 text-center !text-acid">{COPY.challenges.claimed}</p>
       ) : done ? (
         <button className="btn-acid mt-3 w-full !py-2 text-xs" onClick={claim}>
-          ⚡ CLAIM {challenge.xp} XP
+          {COPY.challenges.claim} {challenge.xp} XP
         </button>
       ) : (
-        <p className="mt-3 text-center text-[10px] uppercase tracking-wider text-muted/70">in progress</p>
+        <p className="mt-3 text-center text-[10px] uppercase tracking-wider text-muted/70">
+          {COPY.challenges.inProgress}
+        </p>
       )}
     </motion.article>
   )

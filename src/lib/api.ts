@@ -3,9 +3,11 @@
  * when the backend is unreachable or unconfigured, so the app always demos.
  */
 
-import type { Idea, IdeaStatus, RollFilters, TitleKit, TrendBriefing } from './types'
+import type { Idea, IdeaScript, IdeaStatus, RollFilters, TitleKit, TrendBriefing } from './types'
 import { XP_BY_DIFFICULTY } from './xp'
-import { mockBriefing, mockRoll } from './mock'
+import { buildMockScript, mockBriefing, mockRoll } from './mock'
+import { useGame } from '@/store/gameStore'
+import { classByKey } from './character'
 import { uid } from './utils'
 import { supabase } from './supabase'
 
@@ -40,6 +42,7 @@ interface RawIdea {
   hooks: string[]
   opening_line: string
   difficulty: Idea['difficulty']
+  script?: IdeaScript | null
 }
 
 function hydrateIdea(raw: RawIdea): Idea {
@@ -47,9 +50,16 @@ function hydrateIdea(raw: RawIdea): Idea {
     ...raw,
     id: uid('idea'),
     xp_reward: XP_BY_DIFFICULTY[raw.difficulty] ?? XP_BY_DIFFICULTY[3],
+    script: raw.script ?? null,
     status: 'rolled' as IdeaStatus,
     created_at: new Date().toISOString(),
   }
+}
+
+/** Class biases the generator (P4) — read from the current profile. */
+function currentClassBias(): string | undefined {
+  const cls = useGame.getState().profile.creatorClass
+  return cls ? classByKey(cls).promptBias : undefined
 }
 
 export interface GenerateResult {
@@ -68,6 +78,7 @@ export async function generateIdeas(
       count,
       filters,
       recent_titles: recentTitles.slice(0, 20),
+      class_bias: currentClassBias(),
     })
     if (!Array.isArray(data.ideas) || data.ideas.length === 0) throw new Error('empty roll')
     return { ideas: data.ideas.map(hydrateIdea), offline: false }
@@ -86,6 +97,24 @@ export async function fetchTrendRadar(): Promise<{ briefing: TrendBriefing; offl
   } catch {
     await new Promise((r) => setTimeout(r, 900))
     return { briefing: mockBriefing(), offline: true }
+  }
+}
+
+/** Generate a beat sheet for an idea that lacks one. */
+export async function generateScript(idea: Idea): Promise<IdeaScript> {
+  try {
+    const data = await post<{ script: IdeaScript }>('/api/generate-script', {
+      title: idea.title,
+      format: idea.format,
+      location_suggestion: idea.location_suggestion,
+      opening_line: idea.opening_line,
+      why_now: idea.why_now,
+    })
+    if (!data.script?.hook) throw new Error('empty script')
+    return data.script
+  } catch {
+    await new Promise((r) => setTimeout(r, 900))
+    return buildMockScript(idea)
   }
 }
 

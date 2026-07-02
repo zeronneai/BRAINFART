@@ -34,6 +34,14 @@ const FORMAT_KEYS = [
 const RARITIES = ['common', 'rare', 'epic', 'legendary'] as const
 const XP: Record<number, number> = { 1: 50, 2: 90, 3: 150, 4: 240, 5: 400 }
 
+interface RawScript {
+  hook: string
+  setup: string
+  beats: string[]
+  payoff: string
+  pinned_comment: string
+}
+
 interface RawIdea {
   title: string
   format: (typeof FORMAT_KEYS)[number]
@@ -44,6 +52,20 @@ interface RawIdea {
   opening_line: string
   difficulty: number
   xp_reward?: number
+  script?: RawScript | null
+}
+
+function validateScript(x: unknown): RawScript | null {
+  if (!x || typeof x !== 'object') return null
+  const o = x as Record<string, unknown>
+  if (typeof o.hook !== 'string') return null
+  return {
+    hook: String(o.hook).slice(0, 300),
+    setup: String(o.setup ?? '').slice(0, 400),
+    beats: Array.isArray(o.beats) ? o.beats.slice(0, 4).map((b) => String(b).slice(0, 200)) : [],
+    payoff: String(o.payoff ?? '').slice(0, 300),
+    pinned_comment: String(o.pinned_comment ?? '').slice(0, 200),
+  }
 }
 
 function validateIdea(x: unknown): RawIdea {
@@ -62,6 +84,7 @@ function validateIdea(x: unknown): RawIdea {
     opening_line: String(o.opening_line ?? '').slice(0, 300),
     difficulty,
     xp_reward: XP[difficulty],
+    script: validateScript(o.script),
   }
 }
 
@@ -79,6 +102,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
       recent_titles?: string[]
       geo?: { lat: number; lng: number }
+      class_bias?: string
     }
 
     const count = Math.min(5, Math.max(1, body.count ?? 3))
@@ -98,6 +122,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (filters.effort === 'medium') constraints.push('Effort level: standard shoots — difficulty 2–3.')
     if (filters.effort === 'production') constraints.push('Effort level: big productions — difficulty 3–5, props/crowds/coordination welcome.')
     if (filters.trendSeed) constraints.push(`PRIORITY: build the ideas around this trend/moment the creator just locked onto: "${filters.trendSeed}".`)
+    if (body.class_bias) constraints.push(`CREATOR CLASS STYLE WEIGHT: ${body.class_bias}`)
 
     const userPrompt = `Roll ${count} new video ideas for the creator right now (today is ${new Date().toISOString().slice(0, 10)}).
 
@@ -111,7 +136,7 @@ RECENTLY DONE — do not repeat or closely resemble:
 ${recent.length > 0 ? recent.map((t) => `- ${t}`).join('\n') : '- (nothing yet)'}
 
 Respond with STRICT JSON ONLY: an array of exactly ${count} idea objects with this shape:
-[{"title": string (≤9 words, first-person present tense), "format": one of ${JSON.stringify(FORMAT_KEYS)}, "rarity": one of ${JSON.stringify(RARITIES)} (assigned by viral potential with the distribution rules), "why_now": string (1 line citing the actual trend/date/season), "location_suggestion": string (concrete business or location type, prefer the nearby list), "hooks": [3 alternative titles], "opening_line": string (the first spoken line or question), "difficulty": integer 1-5}]`
+[{"title": string (≤9 words, first-person present tense), "format": one of ${JSON.stringify(FORMAT_KEYS)}, "rarity": one of ${JSON.stringify(RARITIES)} (assigned by viral potential with the distribution rules), "why_now": string (1 line citing the actual trend/date/season), "location_suggestion": string (concrete business or location type, prefer the nearby list), "hooks": [3 alternative titles], "opening_line": string (the first spoken line or question), "difficulty": integer 1-5, "script": {"hook": string (exact opening line/action on camera, 0-3s), "setup": string (where to stand, what to ask, first interaction, 3-10s), "beats": [2-3 short strings for how the bit escalates], "payoff": string (the wholesome ending — tip, reveal, reaction), "pinned_comment": string (the engagement-bait question to pin)}}]`
 
     const client = anthropic()
     const response = await client.messages.create({
@@ -142,6 +167,7 @@ Respond with STRICT JSON ONLY: an array of exactly ${count} idea objects with th
           opening_line: i.opening_line,
           difficulty: i.difficulty,
           xp_reward: i.xp_reward,
+          script: i.script,
           status: 'rolled',
         })),
       )

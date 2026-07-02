@@ -1,7 +1,9 @@
 import { useEffect } from 'react'
-import { NavLink, Outlet, useLocation } from 'react-router-dom'
-import { AnimatePresence, motion } from 'framer-motion'
+import { NavLink, useLocation, useOutlet } from 'react-router-dom'
+import { motion } from 'framer-motion'
 import { useGame } from '@/store/gameStore'
+import { RouteBoundary } from '@/components/RouteBoundary'
+import { COPY } from '@/lib/copy'
 import { HUDHeader } from './HUDHeader'
 import { NavIcon } from './NavIcon'
 import { cn } from '@/lib/utils'
@@ -11,25 +13,27 @@ import { XPToast } from '@/features/progression/XPToast'
 import { BadgePop } from '@/features/progression/BadgePop'
 import { NoticeToast } from '@/components/ui/NoticeToast'
 import { ZoneClearedOverlay } from '@/features/map/ZoneClearedOverlay'
+import { OnboardingLayer } from '@/features/onboarding/OnboardingLayer'
 
 const NAV = [
-  { to: '/', key: 'home', label: 'Roll' },
-  { to: '/quests', key: 'quests', label: 'Quests' },
-  { to: '/map', key: 'map', label: 'Map' },
-  { to: '/radar', key: 'radar', label: 'Radar' },
-  { to: '/vault', key: 'vault', label: 'Vault' },
-  { to: '/profile', key: 'profile', label: 'Profile' },
+  { to: '/', key: 'home', label: COPY.nav.roll },
+  { to: '/quests', key: 'quests', label: COPY.nav.quests },
+  { to: '/map', key: 'map', label: COPY.nav.map },
+  { to: '/radar', key: 'radar', label: COPY.nav.radar },
+  { to: '/vault', key: 'vault', label: COPY.nav.vault },
+  { to: '/profile', key: 'profile', label: COPY.nav.profile },
 ] as const
 
 export function AppShell() {
   const location = useLocation()
-  const seedDemoIfFresh = useGame((s) => s.seedDemoIfFresh)
+  // Snapshot the outlet element: the rendered route can never be swapped
+  // out from under an in-flight transition (the Phase-2 blank-screen bug).
+  const outlet = useOutlet()
   const ensureDailyQuests = useGame((s) => s.ensureDailyQuests)
 
   useEffect(() => {
-    seedDemoIfFresh()
     ensureDailyQuests()
-  }, [seedDemoIfFresh, ensureDailyQuests])
+  }, [ensureDailyQuests])
 
   return (
     <div className="bg-arena flex min-h-dvh">
@@ -66,17 +70,16 @@ export function AppShell() {
       <div className="flex min-h-dvh min-w-0 flex-1 flex-col">
         <HUDHeader />
         <main className="mx-auto w-full max-w-3xl flex-1 px-4 pb-[calc(var(--nav-h)+24px)] pt-4 md:pb-8">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={location.pathname}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              transition={{ duration: 0.18 }}
-            >
-              <Outlet />
-            </motion.div>
-          </AnimatePresence>
+          {/* Entry-only animation — no exit gate, so navigation can never
+              stall. Keyed boundary resets crashes/suspense per route. */}
+          <motion.div
+            key={location.pathname}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.18 }}
+          >
+            <RouteBoundary key={location.pathname}>{outlet}</RouteBoundary>
+          </motion.div>
         </main>
 
         {/* mobile bottom tab bar */}
@@ -128,6 +131,7 @@ export function AppShell() {
       <LegendaryMoment />
       <ZoneClearedOverlay />
       <LevelUpOverlay />
+      <OnboardingLayer />
     </div>
   )
 }

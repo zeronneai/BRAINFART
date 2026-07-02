@@ -61,7 +61,7 @@ export const BADGES: BadgeDef[] = [
   },
   {
     id: 'mundialista',
-    name: 'Mundialista',
+    name: 'World Cup Hero',
     description: 'Complete 5 World Cup videos',
     icon: '⚽',
     target: 5,
@@ -133,7 +133,7 @@ export const BADGES: BadgeDef[] = [
   },
   {
     id: 'cartographer',
-    name: 'Cartógrafo',
+    name: 'Cartographer',
     description: 'Conquer spots in 4 different zones',
     icon: '🗺️',
     target: 4,

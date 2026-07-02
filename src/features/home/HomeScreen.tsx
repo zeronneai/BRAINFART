@@ -6,30 +6,18 @@ import { LootReveal } from '@/features/loot/LootReveal'
 import { FocusedFartSheet } from '@/features/loot/FocusedFartSheet'
 import { ChallengesRail } from '@/features/challenges/ChallengesRail'
 import { QuestCard } from '@/features/quests/QuestCard'
+import { OnboardingCoach } from '@/features/onboarding/OnboardingCoach'
 import { LoadingBrew } from '@/components/ui/LoadingBrew'
+import { COPY } from '@/lib/copy'
 import type { RollFilters } from '@/lib/types'
 import { cn, toDayKey } from '@/lib/utils'
 
 export function HomeScreen() {
-  const {
-    ideas,
-    lastRollIds,
-    rolling,
-    quests,
-    roll,
-    ensureDailyQuests,
-    seedDemoIfFresh,
-    trendSeed,
-    setTrendSeed,
-  } = useGame()
+  const { ideas, lastRollIds, rolling, quests, roll, trendSeed, setTrendSeed } = useGame()
+  const onboardingStep = useGame((s) => s.onboardingStep)
   const [focusOpen, setFocusOpen] = useState(false)
   const [shake, setShake] = useState(false)
   const [brewLine, setBrewLine] = useState(0)
-
-  useEffect(() => {
-    seedDemoIfFresh()
-    ensureDailyQuests()
-  }, [seedDemoIfFresh, ensureDailyQuests])
 
   useEffect(() => {
     if (!rolling) return
@@ -49,6 +37,7 @@ export function HomeScreen() {
   const dailies = quests.filter(
     (q) => q.type === 'daily' && q.scheduled_date === today && q.state === 'available',
   )
+  const onboarding = onboardingStep < 4
 
   const doRoll = async (filters: Partial<RollFilters>) => {
     setShake(true)
@@ -58,6 +47,9 @@ export function HomeScreen() {
 
   return (
     <div className={cn('space-y-12', shake && 'shaking')}>
+      {/* tutorial coach (steps 1–2) */}
+      <OnboardingCoach />
+
       {/* ── THE HERO: the button, nothing competes ── */}
       <section className="flex flex-col items-center pt-6">
         <AnimatePresence>
@@ -87,7 +79,7 @@ export function HomeScreen() {
             animate={{ opacity: 1 }}
             transition={{ delay: 0.4 }}
           >
-            Smash it. Three ideas fall out.
+            {COPY.home.smashIt}
           </motion.p>
         )}
       </section>
@@ -99,29 +91,34 @@ export function HomeScreen() {
             <LoadingBrew line={brewLine} />
           ) : (
             <>
-              <h2 className="hud-label mb-4">Fresh drops</h2>
+              <h2 className="hud-label mb-4">{COPY.home.freshDrops}</h2>
               <LootReveal ideas={lastRoll} />
             </>
           )}
         </section>
       )}
 
-      {/* retos rail */}
-      <ChallengesRail />
+      {/* challenges + dailies hidden until onboarding completes (fresh-start) */}
+      {!onboarding && (
+        <>
+          <ChallengesRail />
 
-      {/* today's dailies — subordinate to everything above */}
-      {dailies.length > 0 && (
-        <section>
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="hud-label">Today's daily quests</h2>
-            <span className="display-num text-xs text-muted/70">{dailies.length} open</span>
-          </div>
-          <div className="space-y-3">
-            {dailies.map((q) => (
-              <QuestCard key={q.id} quest={q} />
-            ))}
-          </div>
-        </section>
+          {dailies.length > 0 && (
+            <section>
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="hud-label">{COPY.home.dailyQuests}</h2>
+                <span className="display-num text-xs text-muted/70">
+                  {dailies.length} {COPY.home.open}
+                </span>
+              </div>
+              <div className="space-y-3">
+                {dailies.map((q) => (
+                  <QuestCard key={q.id} quest={q} />
+                ))}
+              </div>
+            </section>
+          )}
+        </>
       )}
 
       <FocusedFartSheet open={focusOpen} onClose={() => setFocusOpen(false)} onRoll={doRoll} />

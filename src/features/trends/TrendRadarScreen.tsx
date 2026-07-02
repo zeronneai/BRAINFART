@@ -1,68 +1,82 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { useGame } from '@/store/gameStore'
 import { fetchTrendRadar } from '@/lib/api'
 import { LoadingBrew } from '@/components/ui/LoadingBrew'
+import { EmptyState } from '@/components/ui/EmptyState'
+import { COPY } from '@/lib/copy'
 import { formatDayKey, toDayKey } from '@/lib/utils'
 
 export function TrendRadarScreen() {
-  const briefing = useGame((s) => s.briefing)
+  const cachedBriefing = useGame((s) => s.briefing)
   const setBriefing = useGame((s) => s.setBriefing)
   const setTrendSeed = useGame((s) => s.setTrendSeed)
-  const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
+  const day = toDayKey()
 
-  const stale = !briefing || briefing.date !== toDayKey()
+  const { data: briefing, isPending, isError, refetch } = useQuery({
+    queryKey: ['trend-radar', day],
+    queryFn: async () => (await fetchTrendRadar()).briefing,
+    staleTime: 12 * 3_600_000, // one real generation per day
+    // persisted copy renders instantly across reloads
+    initialData: cachedBriefing?.date === day ? cachedBriefing : undefined,
+  })
 
+  // keep the store copy fresh — challenges derive event retos from it
   useEffect(() => {
-    if (!stale || loading) return
-    setLoading(true)
-    fetchTrendRadar()
-      .then(({ briefing }) => setBriefing(briefing))
-      .finally(() => setLoading(false))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stale])
+    if (briefing) setBriefing(briefing)
+  }, [briefing, setBriefing])
 
   const rollFrom = (seed: string) => {
     setTrendSeed(seed)
     navigate('/')
   }
 
-  if (loading && !briefing) {
+  if (isPending) {
     return (
       <div className="pt-16">
         <LoadingBrew />
-        <p className="text-center text-xs text-muted">scanning the timeline…</p>
+        <p className="text-center text-xs text-muted">{COPY.radar.scanning}</p>
       </div>
     )
   }
 
-  if (!briefing) return null
+  if (isError || !briefing) {
+    return (
+      <EmptyState
+        icon="📡"
+        title="Radar is down"
+        subtitle="Couldn't reach the trend feed."
+        action={
+          <button className="btn-acid" onClick={() => refetch()}>
+            {COPY.error.retry}
+          </button>
+        }
+      />
+    )
+  }
 
   return (
     <div className="space-y-6">
       <div className="flex items-baseline justify-between">
-        <h1 className="font-display text-2xl uppercase tracking-wide text-body">
-          Trend Radar 📡
-        </h1>
-        <span className="hud-label">refreshed daily</span>
+        <h1 className="font-display text-2xl uppercase tracking-wide text-body">{COPY.radar.title}</h1>
+        <span className="hud-label">{COPY.radar.refreshed}</span>
       </div>
 
-      {/* seasonal alert */}
       <motion.div
         initial={{ opacity: 0, scale: 0.97 }}
         animate={{ opacity: 1, scale: 1 }}
         className="glass border-legendary/40 p-4"
         style={{ boxShadow: '0 0 30px rgba(255,197,59,0.15)' }}
       >
-        <p className="hud-label !text-legendary">⚠ Seasonal alert</p>
+        <p className="hud-label !text-legendary">{COPY.radar.alert}</p>
         <p className="mt-1.5 text-sm leading-snug text-body">{briefing.seasonal_alert}</p>
       </motion.div>
 
-      {/* top trends */}
       <section>
-        <h2 className="hud-label mb-3">Top 5 in your lane</h2>
+        <h2 className="hud-label mb-3">{COPY.radar.topTrends}</h2>
         <div className="space-y-3">
           {briefing.trends.map((t, i) => (
             <motion.div
@@ -78,24 +92,24 @@ export function TrendRadarScreen() {
                   <h3 className="font-display text-base uppercase leading-tight text-body">{t.title}</h3>
                   <p className="mt-1 text-sm text-muted">{t.summary}</p>
                   <p className="mt-1.5 text-xs text-body/80">
-                    <span className="text-acid">Your angle:</span> {t.why_relevant}
+                    <span className="text-acid">{COPY.radar.yourAngle}:</span> {t.why_relevant}
                   </p>
-                  {t.source && (
-                    <p className="mt-1 truncate text-[10px] text-muted/60">src: {t.source}</p>
-                  )}
+                  {t.source && <p className="mt-1 truncate text-[10px] text-muted/60">src: {t.source}</p>}
                 </div>
               </div>
-              <button className="btn-ghost mt-3 w-full !border-acid/40 !py-2 text-xs !text-acid" onClick={() => rollFrom(t.title)}>
-                🎲 ROLL IDEAS FROM THIS
+              <button
+                className="btn-ghost mt-3 w-full !border-acid/40 !py-2 text-xs !text-acid"
+                onClick={() => rollFrom(t.title)}
+              >
+                {COPY.radar.rollFromThis}
               </button>
             </motion.div>
           ))}
         </div>
       </section>
 
-      {/* upcoming dates */}
       <section>
-        <h2 className="hud-label mb-3">Next 14 days — plan ahead</h2>
+        <h2 className="hud-label mb-3">{COPY.radar.nextDays}</h2>
         <div className="space-y-2">
           {briefing.upcoming_dates.map((d, i) => (
             <motion.button

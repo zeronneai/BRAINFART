@@ -24,6 +24,7 @@ import { mockDailySeeds, mockVariant } from '@/lib/mock'
 import { BADGES, unlockedBadgeIds } from '@/lib/badges'
 import { SPOTS, ZONE_LABELS, spotById, type SpotState, type ZoneKey } from '@/lib/spots'
 import type { Challenge } from '@/lib/challenges'
+import { applyAccent } from '@/lib/character'
 import { daysBetween, seededRng, toDayKey, uid } from '@/lib/utils'
 
 export interface FeedbackSignal {
@@ -47,7 +48,7 @@ const COMBO_MULTIPLIER = 1.5
 interface Overlays {
   pendingLevelUp: { level: number; title: string } | null
   legendaryDrop: Idea | null
-  xpToast: { amount: number; multiplier: number } | null
+  xpToast: { amount: number; multiplier: number; label?: string } | null
   badgePop: { id: string; name: string; icon: string } | null
   zoneCleared: { zone: ZoneKey; name: string } | null
   notice: string | null
@@ -75,10 +76,19 @@ interface GameState extends Overlays {
   justConquered: string | null
   claimedChallenges: Record<string, string>
   comboUntil: string | null
-  seeded: boolean
+  onboardingStep: number
 
   // actions
-  seedDemoIfFresh: () => void
+  completeCharacter: (
+    character: NonNullable<Profile['character']>,
+    creatorClass: NonNullable<Profile['creatorClass']>,
+    displayName: string,
+    accentPref: string,
+  ) => void
+  updateCharacter: (patch: Partial<Pick<Profile, 'character' | 'creatorClass' | 'displayName' | 'accentPref' | 'instagramHandle'>>) => void
+  advanceOnboarding: (to: number) => void
+  attachScript: (ideaId: string, script: NonNullable<Idea['script']>) => void
+  resetSave: () => void
   ensureDailyQuests: () => void
   roll: (filters: Partial<RollFilters>) => Promise<Idea[]>
   acceptQuest: (ideaId: string, spotId?: string) => Quest | null
@@ -103,7 +113,12 @@ interface GameState extends Overlays {
   dismissNotice: () => void
   clearJustConquered: () => void
   hydrateFromCloud: (
-    data: Partial<Pick<GameState, 'profile' | 'ideas' | 'quests' | 'unlockedBadges' | 'feedback' | 'spotStates'>>,
+    data: Partial<
+      Pick<
+        GameState,
+        'profile' | 'ideas' | 'quests' | 'unlockedBadges' | 'feedback' | 'spotStates' | 'onboardingStep'
+      >
+    >,
   ) => void
 }
 
@@ -116,7 +131,14 @@ const initialProfile: Profile = {
   lastPostDate: null,
   ideasRolled: 0,
   legendariesRolled: 0,
+  character: null,
+  creatorClass: null,
+  accentPref: 'acid',
+  instagramHandle: 'pablopyee',
 }
+
+/** Onboarding steps: 0 character · 1 first roll · 2 accept a quest · 3 map intro · 4 done */
+const TUTORIAL_XP = { character: 50, firstRoll: 30, firstAccept: 40 } as const
 
 function questTypeFor(idea: Idea): QuestType {
   if (idea.rarity === 'legendary' || idea.difficulty === 5) return 'boss'
@@ -171,13 +193,14 @@ export const useGame = create<GameState>()(
         return { streak, freezes, today }
       }
 
-      const grantXP = (base: number) => {
+      const grantXP = (base: number, toastLabel?: string) => {
         const before = levelFromXP(get().profile.xp)
         const after = levelFromXP(get().profile.xp + base)
         set((s) => ({
           profile: { ...s.profile, xp: s.profile.xp + base },
           pendingLevelUp:
             after.level > before.level ? { level: after.level, title: after.title } : s.pendingLevelUp,
+          xpToast: toastLabel !== undefined ? { amount: base, multiplier: 1, label: toastLabel } : s.xpToast,
         }))
       }
 
@@ -199,7 +222,7 @@ export const useGame = create<GameState>()(
         justConquered: null,
         claimedChallenges: {},
         comboUntil: null,
-        seeded: false,
+        onboardingStep: 0,
         pendingLevelUp: null,
         legendaryDrop: null,
         xpToast: null,
@@ -207,23 +230,70 @@ export const useGame = create<GameState>()(
         zoneCleared: null,
         notice: null,
 
-        seedDemoIfFresh: () => {
-          const s = get()
-          if (s.seeded || s.quests.length > 0 || s.ideas.length > 0 || s.profile.xp > 0) {
-            if (!s.seeded) set({ seeded: true })
-            return
-          }
-          // Lazy import avoids a cycle (demoSeed imports types only)
-          import('@/lib/demoSeed').then(({ buildDemoSave }) => {
-            const save = buildDemoSave()
-            // reset the dailies marker so today's dailies regenerate on top
-            // of the seed (ensureDailyQuests may have already run)
-            set({ ...save, seeded: true, dailiesForDay: null })
-            get().ensureDailyQuests()
+        completeCharacter: (character, creatorClass, displayName, accentPref) => {
+          applyAccent(accentPref)
+          set((s) => ({
+            profile: {
+              ...s.profile,
+              character,
+              creatorClass,
+              displayName: displayName.trim() || s.profile.displayName,
+              accentPref,
+            },
+            onboardingStep: Math.max(s.onboardingStep, 1),
+          }))
+          grantXP(TUTORIAL_XP.character, 'CHARACTER CREATED')
+        },
+
+        updateCharacter: (patch) => {
+          if (patch.accentPref) applyAccent(patch.accentPref)
+          set((s) => ({ profile: { ...s.profile, ...patch } }))
+        },
+
+        advanceOnboarding: (to) => set((s) => ({ onboardingStep: Math.max(s.onboardingStep, to) })),
+
+        attachScript: (ideaId, script) =>
+          set((s) => ({
+            ideas: s.ideas.map((i) => (i.id === ideaId ? { ...i, script } : i)),
+            quests: s.quests.map((q) =>
+              q.idea.id === ideaId ? { ...q, idea: { ...q.idea, script } } : q,
+            ),
+          })),
+
+        resetSave: () => {
+          import('@/lib/cloudSync')
+            .then((m) => m.wipeCloud())
+            .catch(() => {})
+          applyAccent('acid')
+          set({
+            profile: { ...initialProfile },
+            ideas: [],
+            quests: [],
+            briefing: null,
+            feedback: [],
+            unlockedBadges: [],
+            lastRollIds: [],
+            spotStates: {},
+            claimedChallenges: {},
+            comboUntil: null,
+            dailiesForDay: null,
+            trendSeed: null,
+            trendSpotId: null,
+            lastRollSpotId: null,
+            justConquered: null,
+            onboardingStep: 0,
+            pendingLevelUp: null,
+            legendaryDrop: null,
+            xpToast: null,
+            badgePop: null,
+            zoneCleared: null,
+            notice: null,
           })
         },
 
         ensureDailyQuests: () => {
+          // dailies are available content — hold them until onboarding is done
+          if (get().onboardingStep < 4) return
           const today = toDayKey()
           if (get().dailiesForDay === today) return
           const rng = seededRng(`daily-${today}`)
@@ -269,6 +339,11 @@ export const useGame = create<GameState>()(
                   s.profile.legendariesRolled + ideas.filter((i) => i.rarity === 'legendary').length,
               },
             }))
+            // Tutorial Quest 1: first roll grants XP and advances the chain.
+            if (get().onboardingStep === 1) {
+              grantXP(TUTORIAL_XP.firstRoll, 'FIRST BRAINFART')
+              set({ onboardingStep: 2 })
+            }
             checkBadges()
             return ideas
           } finally {
@@ -308,7 +383,13 @@ export const useGame = create<GameState>()(
                 }
               : s.spotStates,
           }))
-          get().notify(`Quest accepted: ${idea.title}`)
+          // Tutorial Quest 2: first accept grants XP (tuned to cross Level 2).
+          if (get().onboardingStep === 2) {
+            grantXP(TUTORIAL_XP.firstAccept, 'DESTINY ACCEPTED')
+            set({ onboardingStep: 3 })
+          } else {
+            get().notify(`Quest accepted: ${idea.title}`)
+          }
           return quest
         },
 
@@ -322,7 +403,7 @@ export const useGame = create<GameState>()(
               { ideaId, title: idea.title, format: idea.format, signal: 'banked', at: new Date().toISOString() },
             ],
           }))
-          get().notify('Banked. It’ll wait in the Vault.')
+          get().notify("Banked. It'll wait in the Vault.")
           checkBadges()
         },
 
@@ -500,7 +581,7 @@ export const useGame = create<GameState>()(
       }
     },
     {
-      name: 'brainfart-save-v2',
+      name: 'brainfart-save-v3', // v3: fresh-start economy (no pre-seeded progress)
       partialize: (s) => ({
         profile: s.profile,
         ideas: s.ideas,
@@ -513,8 +594,12 @@ export const useGame = create<GameState>()(
         spotStates: s.spotStates,
         claimedChallenges: s.claimedChallenges,
         comboUntil: s.comboUntil,
-        seeded: s.seeded,
+        onboardingStep: s.onboardingStep,
       }),
+      onRehydrateStorage: () => (state) => {
+        // apply the saved accent to CSS variables on load
+        if (state?.profile.accentPref) applyAccent(state.profile.accentPref)
+      },
     },
   ),
 )

@@ -27,6 +27,8 @@ export interface Idea {
   difficulty: Difficulty
   xp_reward: number
   status: IdeaStatus
+  /** AI beat sheet — may be absent on older ideas ("Generate script" fills it) */
+  script?: IdeaScript | null
   created_at: string
 }
 
@@ -47,6 +49,18 @@ export interface Quest {
   created_at: string
 }
 
+/** Layered 2D avatar config (pure data; renderer lives in components/Avatar). */
+export interface Character {
+  base: number
+  hair: number
+  headwear: number
+  top: number
+  accessory: number
+  aura: string
+}
+
+export type CreatorClass = 'prankster' | 'foodie_menace' | 'street_interviewer' | 'chaos_agent'
+
 export interface Profile {
   displayName: string
   xp: number
@@ -56,6 +70,19 @@ export interface Profile {
   lastPostDate: string | null // yyyy-MM-dd
   ideasRolled: number
   legendariesRolled: number
+  /** layered avatar config — null until character creation */
+  character: Character | null
+  creatorClass: CreatorClass | null
+  accentPref: string
+  instagramHandle: string
+}
+
+export interface IdeaScript {
+  hook: string
+  setup: string
+  beats: string[]
+  payoff: string
+  pinned_comment: string
 }
 
 export interface TrendItem {

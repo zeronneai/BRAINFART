@@ -4,10 +4,36 @@
  * placeholder content.
  */
 
-import type { Difficulty, FormatKey, Idea, Rarity, RollFilters, TrendBriefing } from './types'
+import type { Difficulty, FormatKey, Idea, IdeaScript, Rarity, RollFilters, TrendBriefing } from './types'
 import { XP_BY_DIFFICULTY } from './xp'
 import { rollRarity } from './rarity'
 import { toDayKey, uid } from './utils'
+
+/** Build a believable beat sheet from an idea's own fields (demo mode). */
+export function buildMockScript(fields: {
+  title: string
+  opening_line: string
+  location_suggestion: string
+  hooks: string[]
+  format: FormatKey
+}): IdeaScript {
+  const beatsByFormat: Record<FormatKey, string[]> = {
+    yelling_order: ['Start at a normal volume, then crank it louder each word', 'Employee reacts — hold eye contact, stay committed', 'The whole place turns to look'],
+    out_of_business: ['Order one of everything, then double it', 'Staff scramble; you keep a straight face', 'Reveal the plan — you’re giving it all away'],
+    absurd_companion: ['Introduce your companion like it’s completely normal', 'Ask staff to accommodate it', 'Everyone plays along'],
+    authority_wholesome: ['Approach politely with the absurd ask', 'They hesitate, you double down sweetly', 'They crack a smile and join in'],
+    stranger_challenge: ['Pitch the challenge to a stranger', 'They’re unsure — you rally the crowd', 'The whole group commits together'],
+    character_pov: ['Drop into character mid-scene, no explanation', 'React to the real world as the character would', 'Let a bystander’s confusion carry the joke'],
+    employee_flip: ['Frame the shot from the worker’s side', 'Show their deadpan read on the chaos', 'Let their reaction be the punchline'],
+  }
+  return {
+    hook: `Open on camera with: ${fields.opening_line}`,
+    setup: `Set up at ${fields.location_suggestion}. Frame it POV, phone at chest height, and get the first real reaction on camera.`,
+    beats: beatsByFormat[fields.format],
+    payoff: 'Close it wholesome — a big tip, free food for strangers, or a genuine thank-you. Everyone comes out looking good.',
+    pinned_comment: fields.hooks[1] ? `${fields.hooks[1]} — agree? 👇` : 'What business should I hit next? 👇',
+  }
+}
 
 interface SeedIdea {
   title: string
@@ -266,6 +292,7 @@ function toIdea(seed: SeedIdea, rng: () => number): Idea {
     opening_line: seed.opening_line,
     difficulty: seed.difficulty,
     xp_reward: XP_BY_DIFFICULTY[seed.difficulty],
+    script: buildMockScript(seed),
     status: 'rolled',
     created_at: new Date().toISOString(),
   }
