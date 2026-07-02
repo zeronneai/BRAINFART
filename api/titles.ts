@@ -15,7 +15,7 @@ import {
   dnaSystemPrompt,
   extractJson,
   textFromContent,
-} from './_lib/shared'
+} from './_lib/shared.js'
 
 interface Kit {
   titles: string[]

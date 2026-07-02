@@ -7,7 +7,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import type { VercelRequest } from '@vercel/node'
-import { ACTIVE_DNA, type CreatorDNA } from '../../src/lib/creatorDNA'
+import { ACTIVE_DNA, type CreatorDNA } from '../../src/lib/creatorDNA.js'
 
 export const MODEL = 'claude-sonnet-4-6'
 

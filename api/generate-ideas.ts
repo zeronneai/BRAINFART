@@ -18,8 +18,8 @@ import {
   textFromContent,
   supabaseAdmin,
   userIdFromRequest,
-} from './_lib/shared'
-import { placesProvider } from './_lib/places'
+} from './_lib/shared.js'
+import { placesProvider } from './_lib/places.js'
 
 const FORMAT_KEYS = [
   'yelling_order',

@@ -17,7 +17,7 @@ import {
   textFromContent,
   supabaseAdmin,
   userIdFromRequest,
-} from './_lib/shared'
+} from './_lib/shared.js'
 
 interface Briefing {
   date: string
