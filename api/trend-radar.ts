@@ -19,6 +19,14 @@ import {
   userIdFromRequest,
 } from './_lib/shared.js'
 
+/**
+ * The ONLY endpoint that runs web_search — once per user per day, then cached.
+ * Rolls read that cache instead of searching live. Gets the full Hobby budget
+ * (60s) since live search is inherently slower; on a rare timeout it fails
+ * gracefully to the client's mock briefing and retries tomorrow.
+ */
+export const config = { maxDuration: 60 }
+
 interface Briefing {
   date: string
   trends: Array<{ title: string; summary: string; why_relevant: string; source?: string }>
@@ -83,9 +91,9 @@ Respond with STRICT JSON ONLY:
     const client = anthropic()
     const response = await client.messages.create({
       model: MODEL,
-      max_tokens: 3000,
+      max_tokens: 2500,
       system: dnaSystemPrompt(),
-      tools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: 6 }],
+      tools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: 4 }],
       messages: [{ role: 'user', content: userPrompt }],
     })
 

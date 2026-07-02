@@ -92,6 +92,51 @@ export function textFromContent(content: Anthropic.ContentBlock[]): string {
     .join('\n')
 }
 
+/**
+ * Freshest cached trend briefing rendered as a compact prompt block. This is
+ * the speed seam: a roll reuses the once-a-day Trend Radar web-search results
+ * instead of doing a live (slow) web_search on every button press. Prefers the
+ * user's most recent briefing, falling back to the freshest global one — the
+ * creator DNA is global, so the trend context is shared across users.
+ * Returns null when nothing is cached (roll then leans on the date + season).
+ */
+export async function cachedTrendBlock(
+  admin: SupabaseClient | null,
+  userId: string | null,
+): Promise<string | null> {
+  if (!admin) return null
+  const pick = async (uid: string | null) => {
+    let q = admin
+      .from('trend_briefings')
+      .select('payload, date')
+      .order('date', { ascending: false })
+      .limit(1)
+    if (uid) q = q.eq('user_id', uid)
+    const { data } = await q
+    return data?.[0] as { payload?: unknown; date?: string } | undefined
+  }
+  const row = (userId ? await pick(userId) : undefined) ?? (await pick(null))
+  const p = row?.payload as
+    | {
+        trends?: { title?: string; why_relevant?: string }[]
+        upcoming_dates?: { date?: string; label?: string }[]
+        seasonal_alert?: string
+      }
+    | undefined
+  if (!p?.trends?.length) return null
+  const trends = p.trends
+    .slice(0, 5)
+    .map((t) => `- ${t.title}${t.why_relevant ? ` — ${t.why_relevant}` : ''}`)
+    .join('\n')
+  const dates = (p.upcoming_dates ?? [])
+    .slice(0, 6)
+    .map((d) => `- ${d.date}: ${d.label}`)
+    .join('\n')
+  return `CACHED TREND CONTEXT (from the daily Trend Radar refresh — ${row?.date}). Ground every "why_now" in one of these real, current items:
+TRENDS:
+${trends}${dates ? `\nUPCOMING DATES:\n${dates}` : ''}${p.seasonal_alert ? `\nSEASONAL: ${p.seasonal_alert}` : ''}`
+}
+
 /** The creator-voice system prompt shared by all generation endpoints. */
 export function dnaSystemPrompt(dna: CreatorDNA = ACTIVE_DNA): string {
   const formats = dna.formats

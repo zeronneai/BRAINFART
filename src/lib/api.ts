@@ -20,12 +20,25 @@ async function authHeaders(): Promise<Record<string, string>> {
   return headers
 }
 
-async function post<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(path, {
-    method: 'POST',
-    headers: await authHeaders(),
-    body: JSON.stringify(body),
-  })
+/** Hard client-side ceiling so a stuck call surfaces the in-world error
+ *  instead of hanging forever. Sits just above the serverless budget. */
+async function post<T>(path: string, body: unknown, timeoutMs = 25_000): Promise<T> {
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs)
+  let res: Response
+  try {
+    res = await fetch(path, {
+      method: 'POST',
+      headers: await authHeaders(),
+      body: JSON.stringify(body),
+      signal: ctrl.signal,
+    })
+  } catch (err) {
+    if (ctrl.signal.aborted) throw new Error(`${path} timed out after ${Math.round(timeoutMs / 1000)}s`)
+    throw err
+  } finally {
+    clearTimeout(timer)
+  }
   if (!res.ok) {
     const text = await res.text().catch(() => '')
     throw new Error(`${path} failed (${res.status}): ${text.slice(0, 300)}`)
@@ -118,13 +131,45 @@ export async function generateIdeas(
 
 export async function fetchTrendRadar(): Promise<{ briefing: TrendBriefing; offline: boolean }> {
   try {
-    const data = await post<{ briefing: TrendBriefing }>('/api/trend-radar', {})
+    // Longer budget: this is the one endpoint that runs a live web_search.
+    const data = await post<{ briefing: TrendBriefing }>('/api/trend-radar', {}, 55_000)
     if (!data.briefing?.trends?.length) throw new Error('empty briefing')
     return { briefing: data.briefing, offline: false }
   } catch {
     await new Promise((r) => setTimeout(r, 900))
     return { briefing: mockBriefing(), offline: true }
   }
+}
+
+/**
+ * Warm today's trend cache in the background (fire-and-forget, once per day).
+ * This runs the single daily web_search so that fast, search-free rolls have
+ * fresh trend context to ground "why_now" in. Safe to call on app load.
+ */
+let trendWarming = false
+export function warmDailyTrends(): void {
+  const today = new Date().toISOString().slice(0, 10)
+  const key = 'brainfart-trend-warmed'
+  try {
+    if (trendWarming || localStorage.getItem(key) === today) return
+  } catch {
+    return
+  }
+  trendWarming = true
+  void fetchTrendRadar()
+    .then((r) => {
+      // Only mark warmed on a real (non-mock) briefing so we retry if offline.
+      if (!r.offline) {
+        try {
+          localStorage.setItem(key, today)
+        } catch {
+          /* ignore */
+        }
+      }
+    })
+    .finally(() => {
+      trendWarming = false
+    })
 }
 
 /** Generate a beat sheet for an idea that lacks one. */

@@ -8,6 +8,7 @@ import { ChallengesRail } from '@/features/challenges/ChallengesRail'
 import { QuestCard } from '@/features/quests/QuestCard'
 import { OnboardingCoach } from '@/features/onboarding/OnboardingCoach'
 import { LoadingBrew } from '@/components/ui/LoadingBrew'
+import { warmDailyTrends } from '@/lib/api'
 import { COPY } from '@/lib/copy'
 import type { RollFilters } from '@/lib/types'
 import { cn, toDayKey } from '@/lib/utils'
@@ -27,6 +28,12 @@ export function HomeScreen() {
     const t = setInterval(() => setBrewLine((l) => l + 1), 1600)
     return () => clearInterval(t)
   }, [rolling])
+
+  // Warm today's trend cache once (background) past onboarding, so search-free
+  // rolls have fresh trend context to ground "why_now" in.
+  useEffect(() => {
+    if (onboardingStep >= 4) warmDailyTrends()
+  }, [onboardingStep])
 
   const lastRoll = useMemo(
     () =>
