@@ -1,6 +1,7 @@
 /** Badge / achievement definitions tied to Pablo's real formats. */
 
 import type { Idea, Profile, Quest } from './types'
+import { SPOTS } from './spots'
 
 export interface BadgeDef {
   id: string
@@ -121,6 +122,30 @@ export const BADGES: BadgeDef[] = [
     icon: '⚔️',
     target: 1,
     progress: (ctx) => completed(ctx).filter((q) => q.type === 'boss').length,
+  },
+  {
+    id: 'conquistador',
+    name: 'Conquistador',
+    description: 'Conquer 5 spots on the map',
+    icon: '🚩',
+    target: 5,
+    progress: (ctx) => new Set(completed(ctx).map((q) => q.spot_id).filter(Boolean)).size,
+  },
+  {
+    id: 'cartographer',
+    name: 'Cartógrafo',
+    description: 'Conquer spots in 4 different zones',
+    icon: '🗺️',
+    target: 4,
+    progress: (ctx) => {
+      const zones = new Set<string>()
+      for (const q of completed(ctx)) {
+        if (!q.spot_id) continue
+        const spot = SPOTS.find((s) => s.id === q.spot_id)
+        if (spot) zones.add(spot.zone)
+      }
+      return zones.size
+    },
   },
 ]
 

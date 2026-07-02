@@ -44,7 +44,7 @@ export function TrendRadarScreen() {
     <div className="space-y-6">
       <div className="flex items-baseline justify-between">
         <h1 className="font-display text-2xl uppercase tracking-wide text-body">
-          Trend Radar <span className="text-rare">📡</span>
+          Trend Radar 📡
         </h1>
         <span className="hud-label">refreshed daily</span>
       </div>
@@ -73,7 +73,7 @@ export function TrendRadarScreen() {
               transition={{ delay: i * 0.07 }}
             >
               <div className="flex items-start gap-3">
-                <span className="display-num mt-0.5 text-lg text-rare">{i + 1}</span>
+                <span className="display-num mt-0.5 text-lg text-acid">{i + 1}</span>
                 <div className="min-w-0 flex-1">
                   <h3 className="font-display text-base uppercase leading-tight text-body">{t.title}</h3>
                   <p className="mt-1 text-sm text-muted">{t.summary}</p>
@@ -85,7 +85,7 @@ export function TrendRadarScreen() {
                   )}
                 </div>
               </div>
-              <button className="btn-ghost mt-3 w-full !border-rare/40 !py-2 text-xs !text-rare" onClick={() => rollFrom(t.title)}>
+              <button className="btn-ghost mt-3 w-full !border-acid/40 !py-2 text-xs !text-acid" onClick={() => rollFrom(t.title)}>
                 🎲 ROLL IDEAS FROM THIS
               </button>
             </motion.div>

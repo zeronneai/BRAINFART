@@ -2,15 +2,17 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useGame } from '@/store/gameStore'
 import { QuestCard } from './QuestCard'
+import { CalendarBoard } from '@/features/calendar/CalendarBoard'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { cn } from '@/lib/utils'
 
-type Tab = 'active' | 'available' | 'completed'
+type Tab = 'active' | 'available' | 'completed' | 'schedule'
 
 const TABS: Array<{ key: Tab; label: string }> = [
   { key: 'active', label: 'Active' },
-  { key: 'available', label: 'Available' },
-  { key: 'completed', label: 'Completed' },
+  { key: 'available', label: 'Open' },
+  { key: 'completed', label: 'Done' },
+  { key: 'schedule', label: '🗓' },
 ]
 
 export function QuestLogScreen() {
@@ -24,15 +26,11 @@ export function QuestLogScreen() {
     return { active, available, completed }
   }, [quests])
 
-  const list = grouped[tab]
-
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6">
+      <div className="flex items-baseline justify-between">
         <h1 className="font-display text-2xl uppercase tracking-wide text-body">Quest Log</h1>
-        <span className="display-num text-xs text-muted">
-          {grouped.completed.length} cleared
-        </span>
+        <span className="display-num text-xs text-muted">{grouped.completed.length} cleared</span>
       </div>
 
       <div className="glass flex gap-1 !rounded-chip p-1">
@@ -41,17 +39,21 @@ export function QuestLogScreen() {
             key={t.key}
             onClick={() => setTab(t.key)}
             className={cn(
-              'relative flex-1 rounded-chip py-2 text-xs font-bold uppercase tracking-wider transition-colors',
+              'flex-1 rounded-chip py-2 text-xs font-bold uppercase tracking-wider transition-colors',
               tab === t.key ? 'bg-acid text-ink' : 'text-muted hover:text-body',
             )}
           >
             {t.label}
-            <span className="ml-1.5 opacity-60">{grouped[t.key].length}</span>
+            {t.key !== 'schedule' && (
+              <span className="ml-1.5 opacity-60">{grouped[t.key].length}</span>
+            )}
           </button>
         ))}
       </div>
 
-      {list.length === 0 ? (
+      {tab === 'schedule' ? (
+        <CalendarBoard />
+      ) : grouped[tab].length === 0 ? (
         tab === 'active' ? (
           <EmptyState
             icon="⚔️"
@@ -78,7 +80,7 @@ export function QuestLogScreen() {
         )
       ) : (
         <div className="space-y-3">
-          {list.map((q) => (
+          {grouped[tab].map((q) => (
             <QuestCard key={q.id} quest={q} />
           ))}
         </div>

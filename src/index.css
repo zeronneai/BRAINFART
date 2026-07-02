@@ -16,6 +16,20 @@
   --c-body: #e8e9ef;
   --c-muted: #8b8fa3;
 
+  /* surface elevation: bg → cards → modals → dropdowns */
+  --bg: #0a0a0f;
+  --surface-1: #13131b;
+  --surface-2: #1a1a24;
+  --surface-3: #22222e;
+
+  /* z-index scale — the ONLY allowed z values */
+  --z-base: 0;
+  --z-sticky: 10;
+  --z-nav: 20;
+  --z-overlay: 40;
+  --z-modal: 50;
+  --z-toast: 60;
+
   /* accent — acid green, committed */
   --c-acid: #b6ff2e;
   --c-acid-dim: rgba(182, 255, 46, 0.14);
@@ -65,7 +79,7 @@ body::before {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  z-index: 50;
+  z-index: var(--z-nav); /* decorative film over content+nav, under overlays */
   opacity: 0.05;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.6'/%3E%3C/svg%3E");
 }
@@ -97,11 +111,21 @@ body::before {
 
 /* ── shared component recipes ───────────────────────────────── */
 @layer components {
+  /* surface-1: cards. Opaque so text never reads through layers. */
   .glass {
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.015));
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0)) ,
+      var(--surface-1);
     border: 1px solid var(--c-line);
     border-radius: var(--r-card);
-    backdrop-filter: blur(12px);
+  }
+
+  /* surface-2: modals & popovers. Fully solid + strong shadow. */
+  .surface-modal {
+    background: var(--surface-2);
+    border: 1px solid var(--c-line-2);
+    border-radius: var(--r-card);
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.65);
   }
 
   .hud-label {
@@ -181,4 +205,82 @@ body::before {
 }
 .pulse-slow {
   animation: marquee-pulse 2.4s ease-in-out infinite;
+}
+
+/* ── combo state: animated flame border on the HUD ──────────── */
+@keyframes combo-border {
+  0%, 100% { box-shadow: inset 0 -2px 0 #ff8a3d, 0 4px 18px rgba(255, 138, 61, 0.25); }
+  50% { box-shadow: inset 0 -2px 0 #ffc53b, 0 4px 26px rgba(255, 197, 59, 0.4); }
+}
+.combo-hud {
+  animation: combo-border 1.2s ease-in-out infinite;
+}
+
+/* ── Conquest Map pins (Leaflet divIcons) ───────────────────── */
+.leaflet-container {
+  /* !important: leaflet.css loads after this file and sets a light bg */
+  background: var(--bg) !important;
+  font-family: var(--font-body);
+  /* contain leaflet's internal 400–700 z-indexes so they can never rise
+     above our overlay/modal layers */
+  isolation: isolate;
+}
+.leaflet-container .leaflet-control-attribution {
+  background: rgba(10, 10, 15, 0.7);
+  color: var(--c-muted);
+  font-size: 9px;
+}
+.leaflet-container .leaflet-control-attribution a {
+  color: var(--c-muted);
+}
+
+.pin {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  border: 2px solid var(--bg);
+}
+.pin--suggested {
+  background: rgba(139, 143, 163, 0.9);
+}
+.pin--suggested::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 999px;
+  border: 1px solid rgba(139, 143, 163, 0.6);
+  animation: pin-pulse 2s ease-out infinite;
+}
+@keyframes pin-pulse {
+  0% { transform: scale(0.6); opacity: 0.9; }
+  100% { transform: scale(1.5); opacity: 0; }
+}
+.pin--active {
+  background: var(--c-acid);
+  box-shadow: 0 0 12px rgba(182, 255, 46, 0.8);
+  animation: pin-bounce 1s ease-in-out infinite;
+}
+@keyframes pin-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+.pin--conquered {
+  background: var(--c-legendary);
+  box-shadow: 0 0 14px rgba(255, 197, 59, 0.9);
+}
+.pin--conquered::after {
+  content: '';
+  position: absolute;
+  inset: -7px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 197, 59, 0.7);
+}
+.pin--just-conquered {
+  animation: pin-conquer 0.9s cubic-bezier(0.2, 1.4, 0.4, 1);
+}
+@keyframes pin-conquer {
+  0% { transform: scale(0.2); }
+  60% { transform: scale(1.6); }
+  100% { transform: scale(1); }
 }

@@ -42,6 +42,8 @@ export interface Quest {
   scheduled_date: string | null // yyyy-MM-dd
   completed_at: string | null
   post_url: string | null
+  /** Conquest Map: the spot this quest is filmed at */
+  spot_id: string | null
   created_at: string
 }
 

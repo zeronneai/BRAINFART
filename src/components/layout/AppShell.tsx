@@ -1,5 +1,7 @@
+import { useEffect } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
+import { useGame } from '@/store/gameStore'
 import { HUDHeader } from './HUDHeader'
 import { NavIcon } from './NavIcon'
 import { cn } from '@/lib/utils'
@@ -7,18 +9,28 @@ import { LevelUpOverlay } from '@/features/progression/LevelUpOverlay'
 import { LegendaryMoment } from '@/features/loot/LegendaryMoment'
 import { XPToast } from '@/features/progression/XPToast'
 import { BadgePop } from '@/features/progression/BadgePop'
+import { NoticeToast } from '@/components/ui/NoticeToast'
+import { ZoneClearedOverlay } from '@/features/map/ZoneClearedOverlay'
 
 const NAV = [
   { to: '/', key: 'home', label: 'Roll' },
   { to: '/quests', key: 'quests', label: 'Quests' },
+  { to: '/map', key: 'map', label: 'Map' },
   { to: '/radar', key: 'radar', label: 'Radar' },
   { to: '/vault', key: 'vault', label: 'Vault' },
-  { to: '/calendar', key: 'calendar', label: 'Calendar' },
   { to: '/profile', key: 'profile', label: 'Profile' },
 ] as const
 
 export function AppShell() {
   const location = useLocation()
+  const seedDemoIfFresh = useGame((s) => s.seedDemoIfFresh)
+  const ensureDailyQuests = useGame((s) => s.ensureDailyQuests)
+
+  useEffect(() => {
+    seedDemoIfFresh()
+    ensureDailyQuests()
+  }, [seedDemoIfFresh, ensureDailyQuests])
+
   return (
     <div className="bg-arena flex min-h-dvh">
       {/* desktop side rail */}
@@ -69,8 +81,11 @@ export function AppShell() {
 
         {/* mobile bottom tab bar */}
         <nav
-          className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-ink/85 backdrop-blur-lg md:hidden"
-          style={{ height: 'calc(var(--nav-h) + env(safe-area-inset-bottom))' }}
+          className="fixed inset-x-0 bottom-0 border-t border-line bg-ink/85 backdrop-blur-lg md:hidden"
+          style={{
+            height: 'calc(var(--nav-h) + env(safe-area-inset-bottom))',
+            zIndex: 'var(--z-nav)',
+          }}
         >
           <div className="mx-auto grid h-[var(--nav-h)] max-w-md grid-cols-6">
             {NAV.map((item) => (
@@ -82,7 +97,14 @@ export function AppShell() {
               >
                 {({ isActive }) => (
                   <>
-                    <NavIcon name={item.key} active={isActive} />
+                    <span
+                      className={cn(
+                        'flex h-7 w-12 items-center justify-center rounded-chip transition-colors',
+                        isActive && 'bg-acid-dim shadow-[0_0_12px_rgba(182,255,46,0.25)]',
+                      )}
+                    >
+                      <NavIcon name={item.key} active={isActive} />
+                    </span>
                     <span
                       className={cn(
                         'text-[9px] font-semibold uppercase tracking-wider',
@@ -100,9 +122,11 @@ export function AppShell() {
       </div>
 
       {/* global game moments */}
+      <NoticeToast />
       <XPToast />
       <BadgePop />
       <LegendaryMoment />
+      <ZoneClearedOverlay />
       <LevelUpOverlay />
     </div>
   )

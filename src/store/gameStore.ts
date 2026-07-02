@@ -1,6 +1,7 @@
 /**
- * Central game state: profile/XP/streaks, ideas (loot), quests, briefing
- * cache, and transient UI moments (level-ups, legendary drops, badge pops).
+ * Central game state: profile/XP/streaks, ideas (loot), quests, conquest
+ * map, challenges, briefing cache, and transient UI moments (level-ups,
+ * legendary drops, badge pops, zone-cleared celebrations, notices).
  *
  * Persists locally via zustand/persist; cloud sync (Supabase) layers on top
  * in lib/cloudSync.ts when configured.
@@ -21,6 +22,8 @@ import { applyStreak, levelFromXP } from '@/lib/xp'
 import { generateIdeas } from '@/lib/api'
 import { mockDailySeeds, mockVariant } from '@/lib/mock'
 import { BADGES, unlockedBadgeIds } from '@/lib/badges'
+import { SPOTS, ZONE_LABELS, spotById, type SpotState, type ZoneKey } from '@/lib/spots'
+import type { Challenge } from '@/lib/challenges'
 import { daysBetween, seededRng, toDayKey, uid } from '@/lib/utils'
 
 export interface FeedbackSignal {
@@ -31,11 +34,23 @@ export interface FeedbackSignal {
   at: string
 }
 
+export interface SpotRuntime {
+  state: SpotState
+  conquered_at: string | null
+  quest_id: string | null
+}
+
+const COMBO_WINDOW_MS = 7 * 86_400_000
+const COMBO_DURATION_MS = 48 * 3_600_000
+const COMBO_MULTIPLIER = 1.5
+
 interface Overlays {
   pendingLevelUp: { level: number; title: string } | null
   legendaryDrop: Idea | null
   xpToast: { amount: number; multiplier: number } | null
   badgePop: { id: string; name: string; icon: string } | null
+  zoneCleared: { zone: ZoneKey; name: string } | null
+  notice: string | null
 }
 
 interface GameState extends Overlays {
@@ -49,26 +64,47 @@ interface GameState extends Overlays {
   rolling: boolean
   offline: boolean
   dailiesForDay: string | null
-  /** trend title injected into the next roll via "Roll ideas from this" */
   trendSeed: string | null
+  /** spot the current trend seed came from (rolls from a map pin) */
+  trendSpotId: string | null
+  /** spot the last roll was aimed at — accepted cards auto-attach to it */
+  lastRollSpotId: string | null
+  /** conquest overrides keyed by spot id (spots not present = suggested) */
+  spotStates: Record<string, SpotRuntime>
+  /** id of the spot that just flipped, for the pop animation */
+  justConquered: string | null
+  claimedChallenges: Record<string, string>
+  comboUntil: string | null
+  seeded: boolean
 
   // actions
+  seedDemoIfFresh: () => void
   ensureDailyQuests: () => void
   roll: (filters: Partial<RollFilters>) => Promise<Idea[]>
-  acceptQuest: (ideaId: string) => Quest | null
+  acceptQuest: (ideaId: string, spotId?: string) => Quest | null
   bankIdea: (ideaId: string) => void
   trashIdea: (ideaId: string) => void
   rerollVariant: (ideaId: string) => void
   setQuestState: (questId: string, state: QuestState) => void
   completeQuest: (questId: string, postUrl?: string) => void
+  setPostUrl: (questId: string, url: string) => void
+  attachSpot: (questId: string, spotId: string | null) => void
   scheduleQuest: (questId: string, dayKey: string | null) => void
+  claimChallenge: (challenge: Challenge) => void
+  isComboActive: () => boolean
   setBriefing: (b: TrendBriefing) => void
-  setTrendSeed: (seed: string | null) => void
+  setTrendSeed: (seed: string | null, spotId?: string | null) => void
+  notify: (message: string) => void
   dismissLevelUp: () => void
   dismissLegendary: () => void
   dismissXPToast: () => void
   dismissBadgePop: () => void
-  hydrateFromCloud: (data: Partial<Pick<GameState, 'profile' | 'ideas' | 'quests' | 'unlockedBadges' | 'feedback'>>) => void
+  dismissZoneCleared: () => void
+  dismissNotice: () => void
+  clearJustConquered: () => void
+  hydrateFromCloud: (
+    data: Partial<Pick<GameState, 'profile' | 'ideas' | 'quests' | 'unlockedBadges' | 'feedback' | 'spotStates'>>,
+  ) => void
 }
 
 const initialProfile: Profile = {
@@ -105,6 +141,46 @@ export const useGame = create<GameState>()(
         }
       }
 
+      const comboActive = () => {
+        const until = get().comboUntil
+        return until !== null && new Date(until).getTime() > Date.now()
+      }
+
+      /** Streak bookkeeping shared by quest completion. Returns new values. */
+      const advanceStreak = () => {
+        const p = get().profile
+        const today = toDayKey()
+        let streak = p.currentStreak
+        let freezes = p.streakFreezes
+        if (p.lastPostDate === null) {
+          streak = 1
+        } else {
+          const gap = daysBetween(p.lastPostDate, today)
+          if (gap === 0) {
+            // already posted today — unchanged
+          } else if (gap === 1) {
+            streak += 1
+          } else if (gap === 2 && freezes > 0) {
+            freezes -= 1 // mercy mechanic
+            streak += 1
+          } else {
+            streak = 1
+          }
+        }
+        if (streak > 0 && streak % 7 === 0 && streak !== p.currentStreak) freezes += 1
+        return { streak, freezes, today }
+      }
+
+      const grantXP = (base: number) => {
+        const before = levelFromXP(get().profile.xp)
+        const after = levelFromXP(get().profile.xp + base)
+        set((s) => ({
+          profile: { ...s.profile, xp: s.profile.xp + base },
+          pendingLevelUp:
+            after.level > before.level ? { level: after.level, title: after.title } : s.pendingLevelUp,
+        }))
+      }
+
       return {
         profile: initialProfile,
         ideas: [],
@@ -117,16 +193,41 @@ export const useGame = create<GameState>()(
         offline: false,
         dailiesForDay: null,
         trendSeed: null,
+        trendSpotId: null,
+        lastRollSpotId: null,
+        spotStates: {},
+        justConquered: null,
+        claimedChallenges: {},
+        comboUntil: null,
+        seeded: false,
         pendingLevelUp: null,
         legendaryDrop: null,
         xpToast: null,
         badgePop: null,
+        zoneCleared: null,
+        notice: null,
+
+        seedDemoIfFresh: () => {
+          const s = get()
+          if (s.seeded || s.quests.length > 0 || s.ideas.length > 0 || s.profile.xp > 0) {
+            if (!s.seeded) set({ seeded: true })
+            return
+          }
+          // Lazy import avoids a cycle (demoSeed imports types only)
+          import('@/lib/demoSeed').then(({ buildDemoSave }) => {
+            const save = buildDemoSave()
+            // reset the dailies marker so today's dailies regenerate on top
+            // of the seed (ensureDailyQuests may have already run)
+            set({ ...save, seeded: true, dailiesForDay: null })
+            get().ensureDailyQuests()
+          })
+        },
 
         ensureDailyQuests: () => {
           const today = toDayKey()
           if (get().dailiesForDay === today) return
           const rng = seededRng(`daily-${today}`)
-          const count = 1 + Math.floor(rng() * 2) // 1–2 light quests
+          const count = 1 + Math.floor(rng() * 2)
           const dailies: Quest[] = mockDailySeeds(rng, count).map((idea) => ({
             id: uid('quest'),
             idea: { ...idea, status: 'quest' },
@@ -136,25 +237,21 @@ export const useGame = create<GameState>()(
             scheduled_date: today,
             completed_at: null,
             post_url: null,
+            spot_id: null,
             created_at: new Date().toISOString(),
           }))
-          set((s) => ({
-            dailiesForDay: today,
-            quests: [...dailies, ...s.quests],
-          }))
+          set((s) => ({ dailiesForDay: today, quests: [...dailies, ...s.quests] }))
         },
 
         roll: async (filters) => {
-          const { trendSeed } = get()
+          const { trendSeed, trendSpotId } = get()
           set({ rolling: true })
           try {
             const recent = get()
               .quests.filter((q) => q.state !== 'available')
               .map((q) => q.idea.title)
               .concat(get().ideas.filter((i) => i.status !== 'trashed').map((i) => i.title))
-            const mergedFilters = trendSeed
-              ? { ...filters, locationType: filters.locationType, trendMode: true, trendSeed }
-              : filters
+            const mergedFilters = trendSeed ? { ...filters, trendMode: true, trendSeed } : filters
             const { ideas, offline } = await generateIdeas(3, mergedFilters, recent)
             const legendary = ideas.find((i) => i.rarity === 'legendary') ?? null
             set((s) => ({
@@ -162,6 +259,8 @@ export const useGame = create<GameState>()(
               lastRollIds: ideas.map((i) => i.id),
               offline,
               trendSeed: null,
+              trendSpotId: null,
+              lastRollSpotId: trendSpotId,
               legendaryDrop: legendary,
               profile: {
                 ...s.profile,
@@ -177,9 +276,13 @@ export const useGame = create<GameState>()(
           }
         },
 
-        acceptQuest: (ideaId) => {
-          const idea = get().ideas.find((i) => i.id === ideaId)
+        acceptQuest: (ideaId, spotIdArg) => {
+          const s0 = get()
+          const idea = s0.ideas.find((i) => i.id === ideaId)
           if (!idea) return null
+          // cards rolled from a map pin inherit that spot automatically
+          const spotId =
+            spotIdArg ?? (s0.lastRollIds.includes(ideaId) ? s0.lastRollSpotId ?? undefined : undefined)
           const quest: Quest = {
             id: uid('quest'),
             idea: { ...idea, status: 'quest' },
@@ -189,12 +292,23 @@ export const useGame = create<GameState>()(
             scheduled_date: null,
             completed_at: null,
             post_url: null,
+            spot_id: spotId ?? null,
             created_at: new Date().toISOString(),
           }
           set((s) => ({
             quests: [quest, ...s.quests],
             ideas: s.ideas.map((i) => (i.id === ideaId ? { ...i, status: 'quest' } : i)),
+            spotStates: spotId
+              ? {
+                  ...s.spotStates,
+                  [spotId]:
+                    s.spotStates[spotId]?.state === 'conquered'
+                      ? s.spotStates[spotId]
+                      : { state: 'active', conquered_at: null, quest_id: quest.id },
+                }
+              : s.spotStates,
           }))
+          get().notify(`Quest accepted: ${idea.title}`)
           return quest
         },
 
@@ -208,6 +322,7 @@ export const useGame = create<GameState>()(
               { ideaId, title: idea.title, format: idea.format, signal: 'banked', at: new Date().toISOString() },
             ],
           }))
+          get().notify('Banked. It’ll wait in the Vault.')
           checkBadges()
         },
 
@@ -248,46 +363,39 @@ export const useGame = create<GameState>()(
         completeQuest: (questId, postUrl) => {
           const quest = get().quests.find((q) => q.id === questId)
           if (!quest || quest.state === 'completed') return
-          const s = get()
-          const today = toDayKey()
-          const p = s.profile
 
-          // ── streak logic (completion counts as a post) ──
-          let streak = p.currentStreak
-          let freezes = p.streakFreezes
-          if (p.lastPostDate === null) {
-            streak = 1
-          } else {
-            const gap = daysBetween(p.lastPostDate, today)
-            if (gap === 0) {
-              // already posted today — streak unchanged
-            } else if (gap === 1) {
-              streak += 1
-            } else if (gap === 2 && freezes > 0) {
-              freezes -= 1 // mercy mechanic: streak freeze covers the missed day
-              streak += 1
-            } else {
-              streak = 1
+          const { streak, freezes, today } = advanceStreak()
+          const combo = comboActive()
+          const base = applyStreak(quest.xp_reward, streak)
+          const gained = Math.round(base * (combo ? COMBO_MULTIPLIER : 1))
+          const before = levelFromXP(get().profile.xp)
+          const after = levelFromXP(get().profile.xp + gained)
+          const completedAt = new Date().toISOString()
+
+          // ── conquest flip ──
+          let zoneCleared: Overlays['zoneCleared'] = null
+          let spotUpdates: Record<string, SpotRuntime> = {}
+          let justConquered: string | null = null
+          if (quest.spot_id) {
+            const spot = spotById(quest.spot_id)
+            if (spot) {
+              spotUpdates = {
+                [spot.id]: { state: 'conquered', conquered_at: completedAt, quest_id: quest.id },
+              }
+              justConquered = spot.id
+              const states = { ...get().spotStates, ...spotUpdates }
+              const zoneSpots = SPOTS.filter((sp) => sp.zone === spot.zone)
+              const conquered = zoneSpots.filter((sp) => states[sp.id]?.state === 'conquered').length
+              if (conquered === zoneSpots.length) {
+                zoneCleared = { zone: spot.zone, name: ZONE_LABELS[spot.zone] }
+              }
             }
           }
-          // earn a streak freeze at every 7-day milestone
-          if (streak > 0 && streak % 7 === 0 && streak !== p.currentStreak) {
-            freezes += 1
-          }
-
-          const gained = applyStreak(quest.xp_reward, streak)
-          const before = levelFromXP(p.xp)
-          const after = levelFromXP(p.xp + gained)
 
           set((st) => ({
             quests: st.quests.map((q) =>
               q.id === questId
-                ? {
-                    ...q,
-                    state: 'completed',
-                    completed_at: new Date().toISOString(),
-                    post_url: postUrl ?? q.post_url,
-                  }
+                ? { ...q, state: 'completed', completed_at: completedAt, post_url: postUrl ?? q.post_url }
                 : q,
             ),
             profile: {
@@ -298,6 +406,8 @@ export const useGame = create<GameState>()(
               streakFreezes: freezes,
               lastPostDate: today,
             },
+            spotStates: { ...st.spotStates, ...spotUpdates },
+            justConquered: justConquered ?? st.justConquered,
             feedback: [
               ...st.feedback,
               {
@@ -305,13 +415,42 @@ export const useGame = create<GameState>()(
                 title: quest.idea.title,
                 format: quest.idea.format,
                 signal: 'completed',
-                at: new Date().toISOString(),
+                at: completedAt,
               },
             ],
             xpToast: { amount: gained, multiplier: Math.round((gained / quest.xp_reward) * 100) / 100 },
-            pendingLevelUp: after.level > before.level ? { level: after.level, title: after.title } : st.pendingLevelUp,
+            pendingLevelUp:
+              after.level > before.level ? { level: after.level, title: after.title } : st.pendingLevelUp,
+            zoneCleared: zoneCleared ?? st.zoneCleared,
           }))
           checkBadges()
+        },
+
+        setPostUrl: (questId, url) => {
+          set((s) => ({
+            quests: s.quests.map((q) => (q.id === questId ? { ...q, post_url: url } : q)),
+          }))
+          get().notify('Post link saved 🔗')
+        },
+
+        attachSpot: (questId, spotId) => {
+          set((s) => {
+            const quest = s.quests.find((q) => q.id === questId)
+            if (!quest) return s
+            const spotStates = { ...s.spotStates }
+            // release the previous spot
+            if (quest.spot_id && spotStates[quest.spot_id]?.state === 'active') {
+              delete spotStates[quest.spot_id]
+            }
+            if (spotId && spotStates[spotId]?.state !== 'conquered') {
+              spotStates[spotId] = { state: 'active', conquered_at: null, quest_id: questId }
+            }
+            return {
+              ...s,
+              spotStates,
+              quests: s.quests.map((q) => (q.id === questId ? { ...q, spot_id: spotId } : q)),
+            }
+          })
         },
 
         scheduleQuest: (questId, dayKey) => {
@@ -320,18 +459,48 @@ export const useGame = create<GameState>()(
           }))
         },
 
+        claimChallenge: (challenge) => {
+          const s = get()
+          if (s.claimedChallenges[challenge.id]) return
+          const nowISO = new Date().toISOString()
+          const combo = comboActive()
+          const gained = Math.round(challenge.xp * (combo ? COMBO_MULTIPLIER : 1))
+
+          const claimed = { ...s.claimedChallenges, [challenge.id]: nowISO }
+          // combo check: 3 claims inside the rolling window ignites COMBO
+          const recentClaims = Object.values(claimed).filter(
+            (at) => Date.now() - new Date(at).getTime() < COMBO_WINDOW_MS,
+          ).length
+          const ignite = recentClaims >= 3 && !combo
+
+          set({
+            claimedChallenges: claimed,
+            comboUntil: ignite ? new Date(Date.now() + COMBO_DURATION_MS).toISOString() : s.comboUntil,
+            xpToast: { amount: gained, multiplier: combo ? COMBO_MULTIPLIER : 1 },
+          })
+          grantXP(gained)
+          if (ignite) get().notify('🔥 COMBO IGNITED — ×1.5 XP for 48 hours')
+          checkBadges()
+        },
+
+        isComboActive: comboActive,
+
         setBriefing: (b) => set({ briefing: b }),
-        setTrendSeed: (seed) => set({ trendSeed: seed }),
+        setTrendSeed: (seed, spotId = null) => set({ trendSeed: seed, trendSpotId: seed ? spotId : null }),
+        notify: (message) => set({ notice: message }),
         dismissLevelUp: () => set({ pendingLevelUp: null }),
         dismissLegendary: () => set({ legendaryDrop: null }),
         dismissXPToast: () => set({ xpToast: null }),
         dismissBadgePop: () => set({ badgePop: null }),
+        dismissZoneCleared: () => set({ zoneCleared: null }),
+        dismissNotice: () => set({ notice: null }),
+        clearJustConquered: () => set({ justConquered: null }),
 
         hydrateFromCloud: (data) => set((s) => ({ ...s, ...data })),
       }
     },
     {
-      name: 'brainfart-save-v1',
+      name: 'brainfart-save-v2',
       partialize: (s) => ({
         profile: s.profile,
         ideas: s.ideas,
@@ -341,6 +510,10 @@ export const useGame = create<GameState>()(
         unlockedBadges: s.unlockedBadges,
         lastRollIds: s.lastRollIds,
         dailiesForDay: s.dailiesForDay,
+        spotStates: s.spotStates,
+        claimedChallenges: s.claimedChallenges,
+        comboUntil: s.comboUntil,
+        seeded: s.seeded,
       }),
     },
   ),

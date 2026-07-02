@@ -16,7 +16,8 @@ export function BadgePop() {
     <AnimatePresence>
       {badge && (
         <motion.div
-          className="fixed bottom-24 left-1/2 z-[55] md:bottom-10"
+          className="fixed bottom-24 left-1/2 md:bottom-10"
+          style={{ zIndex: 'var(--z-toast)' }}
           initial={{ opacity: 0, x: '-50%', y: 30, scale: 0.85 }}
           animate={{ opacity: 1, x: '-50%', y: 0, scale: 1 }}
           exit={{ opacity: 0, x: '-50%', y: 20 }}

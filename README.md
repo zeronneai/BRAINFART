@@ -10,7 +10,10 @@ Not a content calendar. A living game: **Roll ideas (loot) → Accept quests →
 - **Ideas as loot** — every card has a rarity (Common → Legendary, assigned by *viral potential*, not RNG), a `why_now` grounded in real current trends via web search, a concrete location, 3 alt hooks, an opening line, and an XP reward mapped from difficulty.
 - **Quests** — daily (auto-generated), weekly, and boss quests move through `available → active → filmed → posted → completed`. Completing grants XP; posting streaks multiply it (×1.1/day, capped ×2, with streak-freeze mercy items every 7 days).
 - **Progression** — Lv1 NPC → Lv5 Side Quest → Lv10 Supporting Cast → Lv20 Main Character → Lv35 Fan Favorite → Lv50 Final Boss. Full-screen level-up and legendary-drop moments.
-- **Screens** — Home/The Roll, Quest Log, Trend Radar (daily AI briefing), Vault, Calendar (drag quests onto dates), Profile (badges + stats).
+- **Screens** — Home/The Roll (+ Retos rail), Quest Log (with the Schedule board), **El Territorio** conquest map, Trend Radar (daily AI briefing), Vault, Profile (badges + stats).
+- **Conquest Map** — ~28 real El Paso/Juárez filming spots on a dark Leaflet map (CartoDB tiles, `MAP_PROVIDER` seam for Mapbox later). Completing a quest at a spot flips its pin to gold; zones (Westside → Juárez) track conquest %, 100% = ZONE CLEARED celebration. Geolocation centers the map when granted.
+- **Retos** — daily / weekly / zone / event challenges with countdown chips and claim animations. Claiming 3 in a week ignites **COMBO** (×1.5 XP for 48h, flame border on the HUD).
+- **Post to IG** — on completed quests and in Title Forge: caption (hook + comment bait + hashtags) copied to clipboard, Instagram deep link (web fallback, native share where available), then a "drop the link" prompt that saves `post_url` and feeds the map.
 
 ## Stack
 

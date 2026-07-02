@@ -13,7 +13,8 @@ export function LegendaryMoment() {
     <AnimatePresence>
       {idea && (
         <motion.div
-          className="fixed inset-0 z-[58] flex items-center justify-center overflow-hidden bg-black/90 px-6"
+          className="fixed inset-0 flex items-center justify-center overflow-hidden bg-black/90 px-6"
+          style={{ zIndex: 'var(--z-overlay)' }}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}

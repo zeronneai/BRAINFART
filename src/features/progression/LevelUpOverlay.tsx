@@ -11,7 +11,8 @@ export function LevelUpOverlay() {
     <AnimatePresence>
       {pending && (
         <motion.div
-          className="fixed inset-0 z-[60] flex items-center justify-center overflow-hidden bg-black/85"
+          className="fixed inset-0 flex items-center justify-center overflow-hidden bg-black/85"
+          style={{ zIndex: 'var(--z-modal)' }}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}

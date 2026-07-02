@@ -3,6 +3,7 @@ import { Sheet } from '@/components/ui/Sheet'
 import type { Quest, TitleKit } from '@/lib/types'
 import { generateTitles } from '@/lib/api'
 import { LoadingBrew } from '@/components/ui/LoadingBrew'
+import { ShareToIG } from '@/features/share/ShareToIG'
 
 interface Props {
   open: boolean
@@ -86,6 +87,10 @@ export function TitleForgeSheet({ open, onClose, quest }: Props) {
               >
                 {copied === kit.caption ? '✓ copied' : kit.caption}
               </button>
+            </div>
+
+            <div className="border-t border-line pt-4">
+              <ShareToIG quest={quest} kit={kit} />
             </div>
           </div>
         )}

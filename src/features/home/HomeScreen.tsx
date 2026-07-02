@@ -4,23 +4,33 @@ import { useGame } from '@/store/gameStore'
 import { BrainfartButton } from '@/features/loot/BrainfartButton'
 import { LootReveal } from '@/features/loot/LootReveal'
 import { FocusedFartSheet } from '@/features/loot/FocusedFartSheet'
+import { ChallengesRail } from '@/features/challenges/ChallengesRail'
 import { QuestCard } from '@/features/quests/QuestCard'
 import { LoadingBrew } from '@/components/ui/LoadingBrew'
 import type { RollFilters } from '@/lib/types'
 import { cn, toDayKey } from '@/lib/utils'
 
 export function HomeScreen() {
-  const { ideas, lastRollIds, rolling, quests, roll, ensureDailyQuests, trendSeed, setTrendSeed } =
-    useGame()
+  const {
+    ideas,
+    lastRollIds,
+    rolling,
+    quests,
+    roll,
+    ensureDailyQuests,
+    seedDemoIfFresh,
+    trendSeed,
+    setTrendSeed,
+  } = useGame()
   const [focusOpen, setFocusOpen] = useState(false)
   const [shake, setShake] = useState(false)
   const [brewLine, setBrewLine] = useState(0)
 
   useEffect(() => {
+    seedDemoIfFresh()
     ensureDailyQuests()
-  }, [ensureDailyQuests])
+  }, [seedDemoIfFresh, ensureDailyQuests])
 
-  // rotate the in-world loading copy while brewing
   useEffect(() => {
     if (!rolling) return
     const t = setInterval(() => setBrewLine((l) => l + 1), 1600)
@@ -37,7 +47,7 @@ export function HomeScreen() {
 
   const today = toDayKey()
   const dailies = quests.filter(
-    (q) => q.type === 'daily' && q.scheduled_date === today && q.state !== 'completed',
+    (q) => q.type === 'daily' && q.scheduled_date === today && q.state === 'available',
   )
 
   const doRoll = async (filters: Partial<RollFilters>) => {
@@ -47,70 +57,64 @@ export function HomeScreen() {
   }
 
   return (
-    <div className={cn('space-y-8', shake && 'shaking')}>
-      {/* trend seed banner */}
-      <AnimatePresence>
-        {trendSeed && (
-          <motion.div
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            className="glass flex items-center justify-between gap-3 border-rare/40 px-4 py-3"
-          >
-            <p className="text-sm text-body">
-              <span className="text-rare">📡 Locked on:</span> {trendSeed}
-            </p>
-            <button className="text-xs text-muted hover:text-body" onClick={() => setTrendSeed(null)}>
-              clear
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* the button */}
-      <section className="flex flex-col items-center pt-4">
-        <motion.p
-          className="hud-label mb-6"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.2 }}
-        >
-          {rolling ? 'incoming…' : trendSeed ? 'roll from this trend' : 'press for ideas'}
-        </motion.p>
+    <div className={cn('space-y-12', shake && 'shaking')}>
+      {/* ── THE HERO: the button, nothing competes ── */}
+      <section className="flex flex-col items-center pt-6">
+        <AnimatePresence>
+          {trendSeed && (
+            <motion.button
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className="mb-6 flex max-w-full items-center gap-2 rounded-chip border border-acid/40 bg-acid-dim px-4 py-1.5"
+              onClick={() => setTrendSeed(null)}
+              title="Tap to clear"
+            >
+              <span className="truncate text-xs font-semibold text-acid">🎯 {trendSeed}</span>
+              <span className="text-xs text-acid/60">✕</span>
+            </motion.button>
+          )}
+        </AnimatePresence>
         <BrainfartButton
           disabled={rolling}
           onRoll={() => doRoll({ trendMode: true })}
           onFocusedRoll={() => setFocusOpen(true)}
         />
-      </section>
-
-      {/* fresh loot */}
-      <section>
-        {rolling ? (
-          <LoadingBrew line={brewLine} />
-        ) : lastRoll.length > 0 ? (
-          <>
-            <h2 className="hud-label mb-3">Fresh drops</h2>
-            <LootReveal ideas={lastRoll} />
-          </>
-        ) : (
+        {!rolling && lastRoll.length === 0 && (
           <motion.p
-            className="pulse-slow text-center text-sm text-muted"
+            className="mt-8 text-center text-sm text-muted/80"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.4 }}
           >
-            Smash the button. Three ideas fall out. That's the whole game.
+            Smash it. Three ideas fall out.
           </motion.p>
         )}
       </section>
 
-      {/* today's dailies */}
+      {/* fresh loot — the direct product of pressing the button */}
+      {(rolling || lastRoll.length > 0) && (
+        <section>
+          {rolling ? (
+            <LoadingBrew line={brewLine} />
+          ) : (
+            <>
+              <h2 className="hud-label mb-4">Fresh drops</h2>
+              <LootReveal ideas={lastRoll} />
+            </>
+          )}
+        </section>
+      )}
+
+      {/* retos rail */}
+      <ChallengesRail />
+
+      {/* today's dailies — subordinate to everything above */}
       {dailies.length > 0 && (
         <section>
-          <div className="mb-3 flex items-center justify-between">
+          <div className="mb-4 flex items-center justify-between">
             <h2 className="hud-label">Today's daily quests</h2>
-            <span className="display-num text-xs text-muted">{dailies.length} open</span>
+            <span className="display-num text-xs text-muted/70">{dailies.length} open</span>
           </div>
           <div className="space-y-3">
             {dailies.map((q) => (

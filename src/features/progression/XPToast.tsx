@@ -16,7 +16,8 @@ export function XPToast() {
     <AnimatePresence>
       {toast && (
         <motion.div
-          className="fixed left-1/2 top-20 z-[55]"
+          className="fixed left-1/2 top-20"
+          style={{ zIndex: 'var(--z-toast)' }}
           initial={{ opacity: 0, x: '-50%', y: -12, scale: 0.9 }}
           animate={{ opacity: 1, x: '-50%', y: 0, scale: 1 }}
           exit={{ opacity: 0, x: '-50%', y: -8 }}

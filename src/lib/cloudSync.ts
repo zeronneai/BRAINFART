@@ -113,6 +113,7 @@ async function push(userId: string) {
       scheduled_date: q.scheduled_date,
       completed_at: q.completed_at,
       post_url: q.post_url,
+      spot_id: q.spot_id,
       created_at: q.created_at,
     }))
     if (questRows.length > 0) await supabase.from('quests').upsert(questRows)
@@ -163,6 +164,7 @@ function rowToQuest(row: any, ideaById: Map<string, Idea>): Quest | null {
     scheduled_date: row.scheduled_date,
     completed_at: row.completed_at,
     post_url: row.post_url,
+    spot_id: row.spot_id ?? null,
     created_at: row.created_at,
   }
 }
