@@ -103,12 +103,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       recent_titles?: string[]
       geo?: { lat: number; lng: number }
       class_bias?: string
+      /** 2 DNA formats to emphasize this roll (variety rotation) */
+      emphasis_formats?: string[]
     }
 
     const count = Math.min(5, Math.max(1, body.count ?? 3))
     const filters = body.filters ?? { trendMode: true }
     const trendMode = filters.trendMode !== false
-    const recent = (body.recent_titles ?? []).slice(0, 20)
+    const recent = (body.recent_titles ?? []).slice(0, 30)
+    const today = new Date().toISOString().slice(0, 10)
     const places = await placesProvider.nearby({
       lat: body.geo?.lat,
       lng: body.geo?.lng,
@@ -123,8 +126,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (filters.effort === 'production') constraints.push('Effort level: big productions — difficulty 3–5, props/crowds/coordination welcome.')
     if (filters.trendSeed) constraints.push(`PRIORITY: build the ideas around this trend/moment the creator just locked onto: "${filters.trendSeed}".`)
     if (body.class_bias) constraints.push(`CREATOR CLASS STYLE WEIGHT: ${body.class_bias}`)
+    // variety rotation: emphasize 2 rotating formats so consecutive rolls
+    // explore different territory (skip when a hard format filter is set)
+    const emphasis = (body.emphasis_formats ?? []).filter((f) => FORMAT_KEYS.includes(f as never))
+    if (!filters.format && emphasis.length > 0) {
+      constraints.push(
+        `VARIETY EMPHASIS: weight roughly two-thirds of this roll toward these formats — ${emphasis.join(', ')} — and deliberately avoid rehashing the formats/angles in the "recently done" list. Explore fresh territory.`,
+      )
+    }
 
-    const userPrompt = `Roll ${count} new video ideas for the creator right now (today is ${new Date().toISOString().slice(0, 10)}).
+    const userPrompt = `Roll ${count} new video ideas for the creator right now (today is ${today}).
 
 ${trendMode ? 'TREND MODE IS ON: before generating, use web search to find what is trending RIGHT NOW for short-form video creators, plus upcoming dates/holidays/events in the next 14 days relevant to El Paso/Juárez and his niche (e.g. World Cup 2026 schedule). Ground every "why_now" in something real you found.' : 'Trend mode is off — lean on evergreen strengths and seasonal common sense.'}
 
@@ -132,7 +143,7 @@ ${constraints.length > 0 ? `CONSTRAINTS:\n${constraints.map((c) => `- ${c}`).joi
 NEARBY QUEST LOCATIONS (use these when they fit):
 ${places.map((p) => `- ${p.name} (${p.category}, ${p.area})`).join('\n')}
 
-RECENTLY DONE — do not repeat or closely resemble:
+EXCLUSION LIST — the last ${recent.length} ideas already rolled/accepted. Do NOT generate anything that repeats or closely resembles these (different bit, different angle, different location):
 ${recent.length > 0 ? recent.map((t) => `- ${t}`).join('\n') : '- (nothing yet)'}
 
 Respond with STRICT JSON ONLY: an array of exactly ${count} idea objects with this shape:

@@ -64,29 +64,56 @@ function currentClassBias(): string | undefined {
 
 export interface GenerateResult {
   ideas: Idea[]
-  /** true when the ideas came from the local mock engine */
-  offline: boolean
+  /** true only for the flagged tutorial roll (seed content, not AI) */
+  tutorial: boolean
 }
 
+const ALL_FORMATS = [
+  'yelling_order',
+  'out_of_business',
+  'absurd_companion',
+  'authority_wholesome',
+  'stranger_challenge',
+  'character_pov',
+  'employee_flip',
+] as const
+
+/** Pick 2 distinct formats to emphasize this roll (variety rotation). */
+function rotatingEmphasis(): string[] {
+  const pool = [...ALL_FORMATS]
+  const a = pool.splice(Math.floor(Math.random() * pool.length), 1)[0]
+  const b = pool.splice(Math.floor(Math.random() * pool.length), 1)[0]
+  return [a, b]
+}
+
+/**
+ * Real AI generation. NO silent fallback to seeds — a failed call throws so
+ * the UI can surface a visible, in-world error. Seeds are used ONLY for the
+ * flagged tutorial roll (`tutorial: true`), never as a stealth substitute.
+ */
 export async function generateIdeas(
   count: number,
   filters: Partial<RollFilters>,
   recentTitles: string[],
+  opts: { tutorial?: boolean } = {},
 ): Promise<GenerateResult> {
-  try {
-    const data = await post<{ ideas: RawIdea[] }>('/api/generate-ideas', {
-      count,
-      filters,
-      recent_titles: recentTitles.slice(0, 20),
-      class_bias: currentClassBias(),
-    })
-    if (!Array.isArray(data.ideas) || data.ideas.length === 0) throw new Error('empty roll')
-    return { ideas: data.ideas.map(hydrateIdea), offline: false }
-  } catch {
-    // Demo mode / backend unavailable — the show must go on.
-    await new Promise((r) => setTimeout(r, 1400 + Math.random() * 600))
-    return { ideas: mockRoll(count, filters), offline: true }
+  if (opts.tutorial) {
+    // Tutorial only — clearly flagged seed content so onboarding always works.
+    await new Promise((r) => setTimeout(r, 1200))
+    return { ideas: mockRoll(count, filters), tutorial: true }
   }
+
+  const data = await post<{ ideas: RawIdea[] }>('/api/generate-ideas', {
+    count,
+    filters,
+    recent_titles: recentTitles.slice(0, 30),
+    emphasis_formats: filters.format ? undefined : rotatingEmphasis(),
+    class_bias: currentClassBias(),
+  })
+  if (!Array.isArray(data.ideas) || data.ideas.length === 0) {
+    throw new Error('The generator returned no ideas')
+  }
+  return { ideas: data.ideas.map(hydrateIdea), tutorial: false }
 }
 
 export async function fetchTrendRadar(): Promise<{ briefing: TrendBriefing; offline: boolean }> {

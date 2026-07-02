@@ -28,11 +28,33 @@ npm run dev        # → http://localhost:5173
 
 With **no env vars**, the app runs in full **demo mode**: local persistence, a curated Pablo-voice mock idea engine, and every animation/game system live. Perfect for the sales demo.
 
+### Real AI generation (the BRAINFART button)
+
+The button calls `POST /api/generate-ideas`, which calls Claude (`claude-sonnet-4-6`)
+with `web_search` so `why_now` is grounded in real current events. **Generation is
+never silently faked** — if the API call fails (missing `ANTHROPIC_API_KEY`, network,
+etc.) the app shows an in-world error ("The brain misfired — try again"), it does **not**
+fall back to seed content. Seed ideas are used **only** for the flagged tutorial roll.
+
+Variety mechanics baked into every request:
+- the last **30** rolled/accepted titles are sent as an exclusion list,
+- **2 of the 7 DNA formats are randomly emphasized per roll** (rotates so consecutive
+  rolls explore different territory),
+- today's date + live `web_search` results ground `why_now`.
+
+**Local dev runs the real handler.** `vite-plugin-dev-api.ts` mounts the `/api/*.ts`
+functions inside the Vite dev server, so `npm run dev` exercises the exact same
+generation path as production — set `ANTHROPIC_API_KEY` in `.env` and rolling produces
+real, varied, current ideas locally. Without a key, `/api/generate-ideas` returns `503`
+and the UI shows the error state (correct, visible failure).
+
 ### Full mode
 
-1. Create a Supabase project, run `supabase/migrations/0001_init.sql`.
-2. Copy `.env.example` → `.env` and fill in the values.
-3. `vercel dev` (or deploy to Vercel) so the `/api` functions run. Set the same env vars in the Vercel project.
+1. Create a Supabase project, run the migrations in `supabase/migrations/`.
+2. Copy `.env.example` → `.env` and fill in the values (**`ANTHROPIC_API_KEY` is required
+   for real generation**).
+3. `npm run dev` for local dev (the plugin runs `/api`), or deploy to Vercel. Set the
+   same env vars in the Vercel project.
 
 | Var | Where | Purpose |
 | --- | --- | --- |

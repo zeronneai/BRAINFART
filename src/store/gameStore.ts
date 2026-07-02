@@ -63,7 +63,10 @@ interface GameState extends Overlays {
   unlockedBadges: string[]
   lastRollIds: string[]
   rolling: boolean
-  offline: boolean
+  /** true only for the flagged tutorial roll (seed content, not AI) */
+  tutorialRoll: boolean
+  /** set when a real roll fails — drives the in-world error state */
+  rollError: string | null
   dailiesForDay: string | null
   trendSeed: string | null
   /** spot the current trend seed came from (rolls from a map pin) */
@@ -213,7 +216,8 @@ export const useGame = create<GameState>()(
         unlockedBadges: [],
         lastRollIds: [],
         rolling: false,
-        offline: false,
+        tutorialRoll: false,
+        rollError: null,
         dailiesForDay: null,
         trendSeed: null,
         trendSpotId: null,
@@ -314,20 +318,26 @@ export const useGame = create<GameState>()(
         },
 
         roll: async (filters) => {
-          const { trendSeed, trendSpotId } = get()
-          set({ rolling: true })
+          const { trendSeed, trendSpotId, onboardingStep } = get()
+          const isTutorial = onboardingStep === 1
+          set({ rolling: true, rollError: null })
           try {
+            // last 30 rolled/accepted titles feed the exclusion list
             const recent = get()
               .quests.filter((q) => q.state !== 'available')
               .map((q) => q.idea.title)
               .concat(get().ideas.filter((i) => i.status !== 'trashed').map((i) => i.title))
+              .slice(0, 30)
             const mergedFilters = trendSeed ? { ...filters, trendMode: true, trendSeed } : filters
-            const { ideas, offline } = await generateIdeas(3, mergedFilters, recent)
+            const { ideas, tutorial } = await generateIdeas(3, mergedFilters, recent, {
+              tutorial: isTutorial,
+            })
             const legendary = ideas.find((i) => i.rarity === 'legendary') ?? null
             set((s) => ({
               ideas: [...ideas, ...s.ideas],
               lastRollIds: ideas.map((i) => i.id),
-              offline,
+              tutorialRoll: tutorial,
+              rollError: null,
               trendSeed: null,
               trendSpotId: null,
               lastRollSpotId: trendSpotId,
@@ -340,12 +350,17 @@ export const useGame = create<GameState>()(
               },
             }))
             // Tutorial Quest 1: first roll grants XP and advances the chain.
-            if (get().onboardingStep === 1) {
+            if (isTutorial) {
               grantXP(TUTORIAL_XP.firstRoll, 'FIRST BRAINFART')
               set({ onboardingStep: 2 })
             }
             checkBadges()
             return ideas
+          } catch (err) {
+            // No silent seed fallback — surface the failure in-world.
+            console.error('[roll] generation failed', err)
+            set({ rollError: err instanceof Error ? err.message : 'unknown error', lastRollIds: [] })
+            return []
           } finally {
             set({ rolling: false })
           }

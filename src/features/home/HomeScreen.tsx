@@ -15,9 +15,12 @@ import { cn, toDayKey } from '@/lib/utils'
 export function HomeScreen() {
   const { ideas, lastRollIds, rolling, quests, roll, trendSeed, setTrendSeed } = useGame()
   const onboardingStep = useGame((s) => s.onboardingStep)
+  const rollError = useGame((s) => s.rollError)
+  const tutorialRoll = useGame((s) => s.tutorialRoll)
   const [focusOpen, setFocusOpen] = useState(false)
   const [shake, setShake] = useState(false)
   const [brewLine, setBrewLine] = useState(0)
+  const [lastFilters, setLastFilters] = useState<Partial<RollFilters>>({ trendMode: true })
 
   useEffect(() => {
     if (!rolling) return
@@ -40,6 +43,7 @@ export function HomeScreen() {
   const onboarding = onboardingStep < 4
 
   const doRoll = async (filters: Partial<RollFilters>) => {
+    setLastFilters(filters)
     setShake(true)
     setTimeout(() => setShake(false), 450)
     await roll(filters)
@@ -84,14 +88,40 @@ export function HomeScreen() {
         )}
       </section>
 
+      {/* in-world error — failures are visible, never silently seeded */}
+      {rollError && !rolling && (
+        <motion.section
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="glass border-epic/40 p-6 text-center"
+          style={{ boxShadow: '0 0 30px rgba(201,59,255,0.12)' }}
+        >
+          <div className="text-4xl">🧠💥</div>
+          <p className="mt-2 font-display text-xl uppercase tracking-wide text-body">
+            {COPY.home.rollErrorTitle}
+          </p>
+          <p className="mx-auto mt-1.5 max-w-xs text-sm text-muted">{COPY.home.rollErrorBody}</p>
+          <button className="btn-acid mt-4" onClick={() => doRoll(lastFilters)}>
+            {COPY.home.rollErrorRetry}
+          </button>
+        </motion.section>
+      )}
+
       {/* fresh loot — the direct product of pressing the button */}
-      {(rolling || lastRoll.length > 0) && (
+      {(rolling || lastRoll.length > 0) && !rollError && (
         <section>
           {rolling ? (
             <LoadingBrew line={brewLine} />
           ) : (
             <>
-              <h2 className="hud-label mb-4">{COPY.home.freshDrops}</h2>
+              <div className="mb-4 flex items-center gap-2">
+                <h2 className="hud-label">{COPY.home.freshDrops}</h2>
+                {tutorialRoll && (
+                  <span className="rounded-chip border border-line px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-muted">
+                    {COPY.home.tutorialFlag}
+                  </span>
+                )}
+              </div>
               <LootReveal ideas={lastRoll} />
             </>
           )}

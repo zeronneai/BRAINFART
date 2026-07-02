@@ -24,9 +24,14 @@ export const COPY = {
     brewing: 'brewing…',
     smashIt: 'Smash it. Three ideas fall out.',
     freshDrops: 'Fresh drops',
+    tutorialFlag: 'tutorial roll · sample idea',
     dailyQuests: "Today's daily quests",
     open: 'open',
     buttonAria: 'Roll new ideas',
+    rollErrorTitle: 'The brain misfired',
+    rollErrorBody:
+      'Could not reach the idea generator. Check your connection and try again — real ideas only, no canned filler.',
+    rollErrorRetry: '↻ TRY AGAIN',
   },
 
   loot: {
