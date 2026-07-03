@@ -21,7 +21,7 @@ import {
   cachedTrendBlock,
 } from './_lib/shared.js'
 import { placesProvider } from './_lib/places.js'
-import { referenceInspirationPrompt } from '../src/lib/referenceCreators.js'
+import { referenceInspirationPrompt } from './_lib/references.js'
 
 /**
  * Rolls must fit the Vercel Hobby function budget. web_search is deliberately

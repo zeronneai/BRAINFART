@@ -1,289 +1,191 @@
-/**
- * REFERENCE CREATORS — the niche style-reference layer.
- *
- * Six creators in Pablo's exact lane (POV / prank / street content) whose
- * profiles we analyzed for their signature FORMATS, MECHANICS, and real sample
- * titles. This is an INSPIRATION layer the generator studies to remix proven
- * niche patterns — it is NEVER a source of voice, and never copied 1:1.
- *
- * Priority is always: Pablo's own Content DNA (creatorDNA.ts) DOMINATES. These
- * references only inform FORMAT / MECHANIC choices, adapted into Pablo's
- * wholesome El Paso voice. Anything edgier, grosser, or meaner than Pablo's
- * lane (flagged per-creator in `toneNotes` / `avoid`) is dropped entirely.
- *
- * White-label note: this is niche-level, not creator-specific. A new client in
- * the same niche can reuse this file; a client in a different niche swaps it.
- */
-
-export interface ReferenceFormat {
-  /** The recurring bit as the reference creator runs it. */
-  name: string
-  /** The underlying mechanic — the transferable part worth borrowing. */
-  mechanic: string
-  /** Real sample titles from their feed. NEVER reproduce these — study them. */
-  sampleTitles: string[]
-}
+// ============================================================================
+// referenceCreators.ts
+// Style references for the BRAINFART idea engine.
+// These are NICHE creators in Pablo Yee's space. The AI studies their FORMATS
+// and MECHANICS as inspiration, then adapts everything into Pablo's own voice
+// and El Paso context. NEVER copy a specific video 1:1 — patterns only.
+// This file is a white-label seam: swap it per client.
+// ============================================================================
 
 export interface ReferenceCreator {
-  handle: string
-  /** One-line read on what they're known for. */
-  niche: string
-  formats: ReferenceFormat[]
-  /** The signature mechanics that make their content work. */
-  signatureMechanics: string[]
-  /**
-   * Honest tone read. Where a creator runs edgier/grosser/meaner than Pablo,
-   * it is called out here so the model knows to filter it.
-   */
-  toneNotes: string
-  /** Mechanics Pablo CAN adapt (safe, transferable). */
-  safeToBorrow: string[]
-  /** Angles to SKIP even though this creator does them (off Pablo's lane). */
-  avoid: string[]
-}
-
-/**
- * Cross-creator patterns that recur across the whole niche. These are the
- * highest-value borrowings — abstract, tone-neutral, easy to localize to
- * El Paso and drop into any of Pablo's 7 formats.
- */
-export interface MetaPattern {
-  key: string
-  name: string
-  description: string
-  /** How to bend it into Pablo's voice + El Paso context. */
-  adaptForPablo: string
+  handle: string;
+  name: string;
+  followers: string;
+  niche: string;
+  signatureFormats: string[];   // recurring franchises / repeatable bits
+  mechanic: string;             // WHY the content works
+  sampleTitles: string[];       // real titles observed (inspiration, not to copy)
+  toneNotes: string;            // how it relates to Pablo's wholesome tone
 }
 
 export const REFERENCE_CREATORS: ReferenceCreator[] = [
   {
-    handle: 'jaydatroll_',
-    niche: 'Repetition-counter street pranks — the same escalating ask, over and over, with an on-screen tally.',
-    formats: [
-      {
-        name: 'The Counter Bit',
-        mechanic:
-          'Do the exact same small action to strangers N times with a visible on-screen counter; the comedy is the escalation and the tally climbing.',
-        sampleTitles: [
-          'Asking strangers to hold my hand 100 times',
-          'High-fiving everyone in the mall until they say stop',
-          'Saying "you dropped this" to 50 strangers',
-        ],
-      },
+    handle: "porterjug",
+    name: "Porter",
+    followers: "182K",
+    niche: "Prop-comedy 'hacking' bits in convenience stores & gas stations",
+    signatureFormats: [
+      "Fake 'hacking' a store/ATM/chip-reader with an absurd briefcase rig",
+      "Recurring 'AI robot / droid' character helping commit absurd 'crimes'",
+      "Scaring / testing night-shift and retail workers",
+      "Explaining the absurd bit to real police officers with a straight face",
     ],
-    signatureMechanics: [
-      'On-screen repetition counter (1 of 100, 2 of 100…)',
-      'One tiny action, many targets, cumulative payoff',
-      'The final target gives the emotional button',
-    ],
-    toneNotes:
-      "Clean and playful. Occasionally borderline pestering — Pablo's version should keep every stranger clearly in on the joy, never annoyed.",
-    safeToBorrow: ['the repetition counter', 'the climbing tally as a structural spine', 'the wholesome final beat'],
-    avoid: ['anything that reads as genuinely bothering people who want to be left alone'],
-  },
-  {
-    handle: 'tommytuffknuckless',
-    niche: 'Shock / gross-out prank content — loud, chaotic, deliberately uncomfortable.',
-    formats: [
-      {
-        name: 'Discomfort Bits',
-        mechanic:
-          'Commit hard to an uncomfortable premise in public and film the flinch. The engine is total commitment and a deadpan face.',
-        sampleTitles: [
-          'Eating strangers\' leftover food off their table',
-          'Fake sneezing on people in line',
-          'Pretending to be way too invested in strangers\' conversations',
-        ],
-      },
-    ],
-    signatureMechanics: [
-      'Total deadpan commitment to a dumb premise',
-      'Shock as the hook',
-      'Fast, chaotic pacing',
+    mechanic:
+      "A ridiculous fake-tech prop (briefcase 'mainframe', droid) played 100% deadpan against real employees and cops. The gap between the serious delivery and the stupid prop is the joke. Recurring props/characters build a universe fans recognize.",
+    sampleTitles: [
+      "fake hacking prank cops called",
+      "Hacking a store using Chat-GPT",
+      "playing malicious sounds while using ATM",
+      "Scaring night shift workers taking out trash",
+      "Explaining my droid to the police",
+      "Best drive thru hacking moments",
     ],
     toneNotes:
-      'EDGIEST OF THE SET. Frequently gross-out, mean-spirited, or at people\'s expense. Borrow ONLY the "total deadpan commitment" energy — everything else is off Pablo\'s lane.',
-    safeToBorrow: ['deadpan commitment to an absurd premise', 'playing it 100% straight for the reaction'],
-    avoid: [
-      'gross-out / bodily-function bits',
-      'anything at a stranger\'s expense',
-      'mocking, disability humor, or making anyone the butt of the joke',
-      'genuine discomfort or invading personal space',
-    ],
+      "Deadpan-absurd, harmless. Fits Pablo if kept wholesome (workers in on the laugh, cops end up amused). Borrow the recurring-prop/character idea.",
   },
   {
-    handle: 'theharperhouse',
-    niche: 'Family-franchise pranks — a recurring cast (dad, kids, abuela) running wholesome bits together.',
-    formats: [
-      {
-        name: 'Family Franchise',
-        mechanic:
-          'A recurring, named cast of family members the audience knows and roots for; the family dynamic is the through-line across every video.',
-        sampleTitles: [
-          'My dad tries every drink at the gas station',
-          'Grandma rates the drive-thru workers',
-          'Teaching my little brother to order for the whole family',
-        ],
-      },
+    handle: "jaydatroll_",
+    name: "Jeremy Shields",
+    followers: "722K",
+    niche: "Recurring-character + repetition-counter public stunts",
+    signatureFormats: [
+      "Recurring 'Teddy Tim' / stuffed-animal character taken on dates & to public places",
+      "'Seeing how many times I can [check out / get a refill / order] in a row' repetition bits",
+      "Bringing an animal (chicken, lobster) into a business that clearly doesn't allow it",
+      "Blasting a specific song ('Obsession') in drive-thrus / public",
     ],
-    signatureMechanics: [
-      'Recurring named family cast the audience bonds with',
-      'Inter-generational reactions',
-      'Warm, everyone-wins endings',
+    mechanic:
+      "Two engines: (1) a repetition counter that visibly escalates (attempt 2 → 5 → 8) creating suspense about when staff crack, and (2) a recurring character (Teddy Tim, Lobster Larry) that fans follow across videos. The number on screen IS the hook.",
+    sampleTitles: [
+      "Seeing how many times I can check out in a row",
+      "Seeing how many times I can get a refill",
+      "Taking a chicken to the vet",
+      "Sneaking Lobster Larry into Red Lobster",
+      "Blasting Obsession in the drive thru",
+      "Taking Teddy Tim on a double date",
     ],
-    toneNotes: 'Fully wholesome — closest to Pablo\'s lane. Great template to borrow directly.',
-    safeToBorrow: ['recurring family cast', 'family franchise structure', 'inter-generational reaction beats'],
-    avoid: ['nothing major — just keep it Pablo\'s solo-filmable scale where needed'],
+    toneNotes:
+      "Wholesome, staff-friendly. The repetition-counter format is highly transferable to Pablo (e.g. 'Seeing how many times I can yell my order in a row'). Strong recurring-character lesson.",
   },
   {
-    handle: 'costume.cody',
-    niche: 'Costume-in-the-mundane character POVs — a committed character dropped into an ordinary errand.',
-    formats: [
-      {
-        name: 'Costume in the Mundane',
-        mechanic:
-          'Wear a full costume / play a specific character while doing the most boring everyday task, and never break. The contrast is the joke.',
-        sampleTitles: [
-          'Going to the DMV dressed as a medieval knight',
-          'A pirate does his weekly grocery run',
-          'Returning a package as a Victorian gentleman',
-        ],
-      },
+    handle: "edwardstaxed",
+    name: "Eddie Pan",
+    followers: "213K",
+    niche: "POV good-deed / wholesome social-experiment stunts",
+    signatureFormats: [
+      "'POV: you dropped something' returning items / kindness bait",
+      "Setting up two strangers on a blind date in public",
+      "'POV: shooting my shot' approach bits",
+      "Paying strangers to do wholesome things ('make me banana bread for $100')",
+      "Spreading positivity / random acts at store grand openings",
     ],
-    signatureMechanics: [
-      'Full character commitment in a boring real setting',
-      'The mundane-task contrast',
-      'Real bystander reactions',
+    mechanic:
+      "First-person POV framing ('POV: you dropped something') that puts the viewer in the interaction, resolved with a wholesome payoff. Kindness + slight social risk = shareable feel-good.",
+    sampleTitles: [
+      "POV: you dropped something",
+      "POV: I set two strangers up on a blind date",
+      "POV: shooting my shot",
+      "Will you make me banana bread for $100?",
+      "Spreading positivity",
     ],
-    toneNotes: 'Wholesome and silly. Very compatible with Pablo\'s character/skit POV format.',
-    safeToBorrow: ['costume-in-mundane contrast', 'recurring signature character', 'never breaking character'],
-    avoid: ['costumes that punch down or caricature a real group'],
+    toneNotes:
+      "Very close to Pablo's wholesome core. The clean 'POV:' framing + feel-good payoff is directly transferable and on-brand.",
   },
   {
-    handle: 'bigtipbrandon',
-    niche: 'POV-kindness + local-business spotlights — surprising workers and small shops with generosity.',
-    formats: [
-      {
-        name: 'POV Kindness',
-        mechanic:
-          'Set up like a prank, land as a genuine act of kindness — over-tipping, paying a stranger\'s tab, hyping up an overlooked worker or a struggling local spot.',
-        sampleTitles: [
-          'Tipping $100 on a $5 coffee',
-          'Buying out the slowest food truck of the day',
-          'Paying for everyone\'s order behind me until I run out',
-        ],
-      },
+    handle: "juicy.jacobb",
+    name: "Jacob Vargas",
+    followers: "906K",
+    niche: "Costume / character cosplay dropped into mundane public places",
+    signatureFormats: [
+      "Superhero/pop-culture characters (Homelander, The Deep, Sea Lion) doing boring errands",
+      "Mario/Luigi/Yoshi group cosplay invading lecture halls & streets",
+      "'Everybody hit the Sea Lion' recurring catchphrase bit",
+      "In-costume mundane tasks (grocery store, Petsmart, Home Depot)",
     ],
-    signatureMechanics: [
-      'Prank-shaped setup, kindness payoff',
-      'Spotlighting a specific small local business by name',
-      'Worker reaction is the emotional core',
+    mechanic:
+      "Take an over-the-top costumed character and drop them into the most mundane real-world errand. The contrast (epic character + boring task) + a recurring catchphrase fans repeat = viral loop. Group costume bits amplify chaos.",
+    sampleTitles: [
+      "Homelander goes to the grocery store",
+      "The Deep goes to Petsmart",
+      "Everybody hit the Sea Lion",
+      "You know Princess Peach likes getting kidnapped...",
     ],
-    toneNotes: 'Wholesome by design — the reference for "everyone comes out looking good."',
-    safeToBorrow: ['POV kindness payoff', 'local-business spotlight', 'over-tipping / generosity buttons'],
-    avoid: ['making the generosity feel transactional or performative on camera'],
+    toneNotes:
+      "Character-in-public overlaps Pablo's 'George Washington at Subway'. Keep costumes/IP generic-safe (avoid tightly-licensed characters in Pablo's version). Great catchphrase lesson.",
   },
   {
-    handle: 'sayless.sammy',
-    niche: 'Catchphrase-loop content — one signature phrase repeated as a running audio hook across every video.',
-    formats: [
-      {
-        name: 'Catchphrase Loop',
-        mechanic:
-          'A single signature phrase / call-and-response the audience learns and expects; it opens or closes every bit and becomes a comment-section chant.',
-        sampleTitles: [
-          'I say my catchphrase to strangers until one says it back',
-          'Getting the whole gym to say my line',
-          'The line that gets a reaction every single time',
-        ],
-      },
+    handle: "tommytuffknuckless",
+    name: "TommyTuffKnuckles",
+    followers: "181K",
+    niche: "Shock-prank + gross-out public bits",
+    signatureFormats: [
+      "'Ordering food with Tourette's' escalating-outburst bit",
+      "Gross-out props (giant turd prank, dirty-feet pedicure)",
+      "'My friends stuck in the dryer' setups in appliance stores",
+      "Boxing/fight-promo style crossover content",
     ],
-    signatureMechanics: [
-      'A learnable signature catchphrase',
-      'Call-and-response with strangers/crowds',
-      'Comment-bait built into the audio',
+    mechanic:
+      "Shock value + escalation played for reactions. NOTE: several bits here lean edgier/grosser than Pablo's lane.",
+    sampleTitles: [
+      "Ordering food with Tourette's",
+      "My friends stuck in the dryer prank",
+      "Getting a pedicure with dirty feet",
     ],
-    toneNotes: 'Clean. The mechanic (a repeatable audio hook) is highly transferable.',
-    safeToBorrow: ['catchphrase / call-and-response loop', 'crowd chant payoff', 'audio hook as comment-bait'],
-    avoid: ['catchphrases that are crude or exclusionary'],
+    toneNotes:
+      "USE WITH CAUTION. Keep only the escalation-in-public and appliance-store-setup mechanics. DO NOT replicate the mocking/gross-out or disability-mimic bits — off-brand and potentially offensive for Pablo. Filtered heavily.",
   },
-]
+  {
+    handle: "lilsafiy",
+    name: "Safiy",
+    followers: "276K",
+    niche: "Awkward-humor + recurring 'dad glasses' family bits",
+    signatureFormats: [
+      "'Awkwardly laughing in public' recurring bit at ice cream / food counters",
+      "'Picking up my [ethnic] dad's glasses/prescription' recurring family franchise",
+      "Companion-character public dates (Buzz Lightyear, Pikachu on a hibachi date)",
+      "'Paying strangers to laugh for a minute straight' social bits",
+    ],
+    mechanic:
+      "A recurring relatable 'bit persona' (the awkward laugher) plus a family-franchise format ('picking up my dad's glasses') that gets re-skinned with different ethnic dads. Relatability + repeatable template.",
+    sampleTitles: [
+      "Awkwardly laughing in public",
+      "Picking up my Italian dad's glasses",
+      "Taking Pikachu on a hibachi date",
+      "Paying strangers to laugh for a minute straight",
+    ],
+    toneNotes:
+      "Wholesome, relatable. The 'companion character on a date' and family-franchise templates map cleanly onto Pablo (he already does stuffed-animal dinners). Avoid the one-off edgy titles seen in the grid.",
+  },
+  {
+    handle: "elizabetheatsnyc",
+    name: "Elizabeth",
+    followers: "480K",
+    niche: "Food-focused NYC eats with character/costume flair",
+    signatureFormats: [
+      "'Ungatekeeping' local eats — showcasing hole-in-the-wall spots",
+      "Eating in absurd costumes / historical dress (Elizabethan ruff, colonial)",
+      "Big seafood boils / messy-eating spectacle",
+      "Location-hopping food tours tied to landmarks",
+    ],
+    mechanic:
+      "Local-food discovery ('ungatekeeping') is the value hook; costume/character adds personality so it's not just another food account. Strong local-business spotlight angle.",
+    sampleTitles: [
+      "ungatekeeping NYC's eats",
+      "[eating in Elizabethan costume]",
+    ],
+    toneNotes:
+      "The 'ungatekeeping local eats' + local-business-spotlight angle is GOLD for Pablo's El Paso/Juárez market (Chico's Tacos, L&J, local taquerias). Wholesome, pro-small-business — perfectly on brand.",
+  },
+];
 
-export const NICHE_META_PATTERNS: MetaPattern[] = [
-  {
-    key: 'recurring_character',
-    name: 'Recurring Character',
-    description: 'A named, repeatable persona or costume the audience recognizes and returns for.',
-    adaptForPablo:
-      'A signature El Paso character dropped into real local spots (e.g. a committed bit at a Juárez mercado or a Westside taquería), played 100% straight.',
-  },
-  {
-    key: 'repetition_counter',
-    name: 'Repetition Counter',
-    description: 'One small action repeated N times with a visible on-screen tally; escalation + final emotional button.',
-    adaptForPablo:
-      'Run the counter on a wholesome ask across El Paso — e.g. the same kind gesture to 50 strangers downtown, tally climbing, the last one lands the heart.',
-  },
-  {
-    key: 'pov_kindness',
-    name: 'POV Kindness',
-    description: 'A prank-shaped setup that resolves into genuine generosity; the worker/stranger is the hero.',
-    adaptForPablo:
-      'Prank framing, generous payoff — big tips, buying out a local vendor, hyping an overlooked El Paso worker. Everyone comes out looking good.',
-  },
-  {
-    key: 'local_business_spotlight',
-    name: 'Local-Business Spotlight',
-    description: 'Naming and boosting a specific small local business as the setting and the point.',
-    adaptForPablo:
-      'Spotlight a real El Paso / Juárez small business by type — a family taquería, a paletería, a border-town food truck — and send it customers.',
-  },
-  {
-    key: 'catchphrase_loop',
-    name: 'Catchphrase Loop',
-    description: 'A learnable signature phrase / call-and-response that becomes an audio hook and comment-bait.',
-    adaptForPablo:
-      'A bilingual EN/ES signature line Pablo gets strangers or a World Cup crowd to chant back — built to farm replies in the comments.',
-  },
-  {
-    key: 'family_franchise',
-    name: 'Family Franchise',
-    description: 'A recurring family cast the audience bonds with; the family dynamic carries every episode.',
-    adaptForPablo:
-      'Recurring familia bits — abuela rating drive-thru workers, teaching a primo to order — warm, bilingual, everyone-wins.',
-  },
-]
-
-/**
- * Render the reference layer as a system-prompt section. Framed explicitly as
- * SUBORDINATE inspiration under Pablo's dominant DNA, with the hard tone/voice
- * rules baked in. Used by /api/generate-ideas.
- */
-export function referenceInspirationPrompt(): string {
-  const patterns = NICHE_META_PATTERNS.map(
-    (p) => `- ${p.name}: ${p.description}\n  → In Pablo's voice: ${p.adaptForPablo}`,
-  ).join('\n')
-
-  const creators = REFERENCE_CREATORS.map((c) => {
-    const formats = c.formats
-      .map((f) => `    • ${f.name} — mechanic: ${f.mechanic}\n      (their real videos, DO NOT copy: ${f.sampleTitles.join(' | ')})`)
-      .join('\n')
-    return `  @${c.handle} — ${c.niche}\n${formats}\n    Borrow: ${c.safeToBorrow.join('; ')}.\n    SKIP: ${c.avoid.join('; ')}.\n    Tone read: ${c.toneNotes}`
-  }).join('\n\n')
-
-  return `## NICHE STYLE REFERENCE (INSPIRATION ONLY — SUBORDINATE TO PABLO'S DNA ABOVE)
-You have studied 6 top creators in Pablo's exact niche (POV / prank / street content). Use their FORMATS and MECHANICS as raw material to remix into NEW ideas. This layer NEVER overrides Pablo's voice, tone, or 7 formats — it only expands the pool of mechanics you can localize into his lane.
-
-### HIGHEST-VALUE META-PATTERNS (bias toward these — they transfer cleanly)
-${patterns}
-
-### REFERENCE CREATORS
-${creators}
-
-### HARD RULES FOR USING THIS LAYER (non-negotiable)
-1. VOICE = PABLO, ALWAYS. Reference creators inform FORMAT / MECHANIC only — never voice, never phrasing. Every idea still reads unmistakably like Pablo.
-2. NO 1:1 COPYING. Never output a title that essentially replicates a referenced video. Remix, combine, and localize — do not reproduce.
-3. LOCALIZE TO EL PASO / JUÁREZ. Real business types, mariachi, World Cup, border culture, bilingual EN/ES.
-4. TONE FILTER = PABLO'S WHOLESOME LANE. Several references (especially @tommytuffknuckless) run edgier/grosser/meaner than Pablo. SKIP entirely anything mean-spirited, gross-out, disability-mocking, invasive, or at someone's expense — even when a reference creator does it. Workers, strangers, and cops always come out looking good. When in doubt, drop it.
-5. PREFER THE META-PATTERNS. Recurring character, repetition counter, POV kindness, local-business spotlight, catchphrase loop, and family franchise are the highest-value borrowings — reach for these first.`
-}
+// Cross-creator patterns the idea engine should exploit:
+export const NICHE_META_PATTERNS = [
+  "RECURRING CHARACTER: a named prop/mascot fans follow across videos (Teddy Tim, Lobster Larry, the droid). Build Pablo his own.",
+  "REPETITION COUNTER: 'seeing how many times I can X in a row' — the on-screen number is the hook and the suspense.",
+  "COSTUME-IN-MUNDANE: epic/historical character doing a boring errand (Pablo already does George Washington).",
+  "CATCHPHRASE LOOP: a repeatable line fans quote ('Everybody hit the Sea Lion').",
+  "POV KINDNESS: 'POV:' framing + wholesome payoff (returning items, setting up strangers).",
+  "FAMILY FRANCHISE: a re-skinnable template ('picking up my [X] dad's glasses').",
+  "LOCAL-BUSINESS SPOTLIGHT: 'ungatekeeping' local hole-in-the-wall spots — huge for the El Paso/Juárez market.",
+  "ESCALATION IN PUBLIC: a bit that visibly builds beat by beat until staff/strangers react.",
+];
