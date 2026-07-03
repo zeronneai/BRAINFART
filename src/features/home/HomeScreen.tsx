@@ -9,6 +9,8 @@ import { QuestCard } from '@/features/quests/QuestCard'
 import { OnboardingCoach } from '@/features/onboarding/OnboardingCoach'
 import { LoadingBrew } from '@/components/ui/LoadingBrew'
 import { warmDailyTrends } from '@/lib/api'
+import { showcaseEnabled } from '@/lib/demoShowcase'
+import { ShowcaseSection } from '@/features/showcase/ShowcaseSection'
 import { COPY } from '@/lib/copy'
 import type { RollFilters } from '@/lib/types'
 import { cn, toDayKey } from '@/lib/utils'
@@ -22,6 +24,9 @@ export function HomeScreen() {
   const [shake, setShake] = useState(false)
   const [brewLine, setBrewLine] = useState(0)
   const [lastFilters, setLastFilters] = useState<Partial<RollFilters>>({ trendMode: true })
+  // Demo/sales showcase — gated + OFF by default; never touches real rolls.
+  const showcaseAvailable = useMemo(() => showcaseEnabled(), [])
+  const [showcaseOn, setShowcaseOn] = useState(false)
 
   useEffect(() => {
     if (!rolling) return
@@ -93,7 +98,23 @@ export function HomeScreen() {
             {COPY.home.smashIt}
           </motion.p>
         )}
+
+        {/* subtle demo/sales toggle — only visible when showcase is available */}
+        {showcaseAvailable && (
+          <button
+            className={cn(
+              'mt-5 rounded-chip border px-3 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors',
+              showcaseOn ? 'border-acid/50 bg-acid-dim text-acid' : 'border-line text-muted/70',
+            )}
+            onClick={() => setShowcaseOn((v) => !v)}
+          >
+            ◇ Showcase {showcaseOn ? 'on' : 'off'}
+          </button>
+        )}
       </section>
+
+      {/* demo/sales showcase — display-only, isolated from the real roll flow */}
+      {showcaseAvailable && showcaseOn && <ShowcaseSection />}
 
       {/* in-world error — failures are visible, never silently seeded */}
       {rollError && !rolling && (
