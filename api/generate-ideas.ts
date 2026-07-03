@@ -21,6 +21,7 @@ import {
   cachedTrendBlock,
 } from './_lib/shared.js'
 import { placesProvider } from './_lib/places.js'
+import { referenceInspirationPrompt } from '../src/lib/referenceCreators.js'
 
 /**
  * Rolls must fit the Vercel Hobby function budget. web_search is deliberately
@@ -62,6 +63,8 @@ interface RawIdea {
   difficulty: number
   xp_reward?: number
   script?: RawScript | null
+  /** Which niche reference pattern this idea remixed, e.g. "jaydatroll_ (repetition counter)". Null when none. */
+  inspired_by?: string | null
 }
 
 function validateScript(x: unknown): RawScript | null {
@@ -94,6 +97,7 @@ function validateIdea(x: unknown): RawIdea {
     difficulty,
     xp_reward: XP[difficulty],
     script: validateScript(o.script),
+    inspired_by: o.inspired_by ? String(o.inspired_by).slice(0, 80) : null,
   }
 }
 
@@ -172,7 +176,7 @@ EXCLUSION LIST — the last ${recent.length} ideas already rolled/accepted. Do N
 ${recent.length > 0 ? recent.map((t) => `- ${t}`).join('\n') : '- (nothing yet)'}
 
 Respond with STRICT JSON ONLY: an array of exactly ${count} idea objects with this shape:
-[{"title": string (≤9 words, first-person present tense), "format": one of ${JSON.stringify(FORMAT_KEYS)}, "rarity": one of ${JSON.stringify(RARITIES)} (assigned by viral potential with the distribution rules), "why_now": string (1 line citing the actual trend/date/season), "location_suggestion": string (concrete business or location type, prefer the nearby list), "hooks": [3 alternative titles], "opening_line": string (the first spoken line or question), "difficulty": integer 1-5, "script": {"hook": string (exact opening line/action on camera, 0-3s), "setup": string (where to stand, what to ask, first interaction, 3-10s), "beats": [2-3 short strings for how the bit escalates], "payoff": string (the wholesome ending — tip, reveal, reaction), "pinned_comment": string (the engagement-bait question to pin)}}]`
+[{"title": string (≤9 words, first-person present tense), "format": one of ${JSON.stringify(FORMAT_KEYS)}, "rarity": one of ${JSON.stringify(RARITIES)} (assigned by viral potential with the distribution rules), "why_now": string (1 line citing the actual trend/date/season), "location_suggestion": string (concrete business or location type, prefer the nearby list), "hooks": [3 alternative titles], "opening_line": string (the first spoken line or question), "difficulty": integer 1-5, "script": {"hook": string (exact opening line/action on camera, 0-3s), "setup": string (where to stand, what to ask, first interaction, 3-10s), "beats": [2-3 short strings for how the bit escalates], "payoff": string (the wholesome ending — tip, reveal, reaction), "pinned_comment": string (the engagement-bait question to pin)}, "inspired_by": string or null (if you remixed a niche reference pattern, name it as "handle (pattern)" e.g. "jaydatroll_ (repetition counter)" or "meta: local-business spotlight"; null if the idea is pure Pablo). This is a behind-the-scenes tag, NOT part of the voice.}]`
 
     // Right-sized cap: ~3 cards with scripts land near 2.5k tokens; scale with
     // count and never pay latency for a headroom we discard. (No web_search:
@@ -183,7 +187,9 @@ Respond with STRICT JSON ONLY: an array of exactly ${count} idea objects with th
     const response = await client.messages.create({
       model: MODEL,
       max_tokens: maxTokens,
-      system: dnaSystemPrompt(),
+      // Pablo's DNA leads; the niche style-reference layer is appended as
+      // subordinate inspiration (format/mechanic only, never voice).
+      system: dnaSystemPrompt(undefined, [referenceInspirationPrompt()]),
       messages: [{ role: 'user', content: userPrompt }],
     })
 

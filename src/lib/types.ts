@@ -29,6 +29,8 @@ export interface Idea {
   status: IdeaStatus
   /** AI beat sheet — may be absent on older ideas ("Generate script" fills it) */
   script?: IdeaScript | null
+  /** Niche reference pattern this idea remixed, e.g. "jaydatroll_ (repetition counter)". */
+  inspired_by?: string | null
   created_at: string
 }
 

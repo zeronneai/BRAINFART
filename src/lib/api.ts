@@ -56,6 +56,7 @@ interface RawIdea {
   opening_line: string
   difficulty: Idea['difficulty']
   script?: IdeaScript | null
+  inspired_by?: string | null
 }
 
 function hydrateIdea(raw: RawIdea): Idea {
@@ -64,6 +65,7 @@ function hydrateIdea(raw: RawIdea): Idea {
     id: uid('idea'),
     xp_reward: XP_BY_DIFFICULTY[raw.difficulty] ?? XP_BY_DIFFICULTY[3],
     script: raw.script ?? null,
+    inspired_by: raw.inspired_by ?? null,
     status: 'rolled' as IdeaStatus,
     created_at: new Date().toISOString(),
   }

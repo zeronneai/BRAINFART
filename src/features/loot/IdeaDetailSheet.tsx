@@ -60,6 +60,15 @@ export function IdeaDetailSheet({ idea, onClose }: Props) {
             <span className="text-acid">{COPY.loot.whyNow}:</span> {idea.why_now}
           </p>
           <p className="text-sm text-muted">📍 {idea.location_suggestion}</p>
+          {idea.inspired_by && (
+            <p
+              className="inline-flex items-center gap-1.5 rounded-chip border border-line/70 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted/80"
+              title="BRAINFART studies proven formats from top creators in your niche, then remixes them in your voice."
+            >
+              <span aria-hidden>🧬</span>
+              {COPY.detail.pattern}: {idea.inspired_by}
+            </p>
+          )}
         </section>
 
         {/* ── THE SCRIPT ── */}

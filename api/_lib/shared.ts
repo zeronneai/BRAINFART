@@ -137,8 +137,12 @@ TRENDS:
 ${trends}${dates ? `\nUPCOMING DATES:\n${dates}` : ''}${p.seasonal_alert ? `\nSEASONAL: ${p.seasonal_alert}` : ''}`
 }
 
-/** The creator-voice system prompt shared by all generation endpoints. */
-export function dnaSystemPrompt(dna: CreatorDNA = ACTIVE_DNA): string {
+/**
+ * The creator-voice system prompt shared by all generation endpoints.
+ * `extraSections` are appended AFTER the DNA so Pablo's voice always leads and
+ * dominates — used to bolt on the niche style-reference layer for rolls.
+ */
+export function dnaSystemPrompt(dna: CreatorDNA = ACTIVE_DNA, extraSections: string[] = []): string {
   const formats = dna.formats
     .map(
       (f) =>
@@ -175,5 +179,7 @@ ${dna.culturalAnchors.map((a) => `- ${a}`).join('\n')}
 - "epic" (~12%): high-novelty concept OR strong trend/date alignment.
 - "legendary" (~3%): perfect storm — live trend + seasonal moment + his exact format. Reserve it.
 
-You always respond with STRICT JSON ONLY — no prose before or after, no markdown fences.`
+You always respond with STRICT JSON ONLY — no prose before or after, no markdown fences.${
+    extraSections.length > 0 ? `\n\n${extraSections.join('\n\n')}` : ''
+  }`
 }

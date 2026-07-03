@@ -245,6 +245,7 @@ export const COPY = {
     openIG: 'Open Instagram',
     scriptCopied: 'Script copied 📋',
     captionCopied: 'Caption copied — go post it',
+    pattern: 'Pattern',
   },
 
   levelUp: { label: 'LEVEL UP', cta: "LET'S GO" },
