@@ -3,9 +3,10 @@
  * Body: { count?: number, filters?: RollFilters, recent_titles?: string[], geo?: {lat,lng} }
  * → { ideas: RawIdea[] }
  *
- * Calls Claude (with web search when Trend Mode is on) to roll loot-card
- * ideas in the creator's voice, validates the strict-JSON response, persists
- * to Supabase when configured, and returns the cards.
+ * Calls Claude to roll loot-card ideas in the creator's voice, grounded in the
+ * daily-cached trend context (NO live web_search here — that runs once a day in
+ * /api/trend-radar), validates the strict-JSON response, persists to Supabase
+ * when configured, and returns the cards.
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
@@ -26,10 +27,16 @@ import { referenceInspirationPrompt } from './_lib/references.js'
 /**
  * Rolls must fit the Vercel Hobby function budget. web_search is deliberately
  * NOT used here (it added 2-3 min/roll) — trend grounding comes from the
- * daily-cached Trend Radar briefing instead. 30s is ample headroom for a
- * single search-free generation and stays under Hobby's 60s ceiling.
+ * daily-cached Trend Radar briefing instead. maxDuration is set to Hobby's
+ * ceiling (60s) as a hard backstop, but the real guard is GEN_TIMEOUT_MS below:
+ * the Anthropic call is aborted at 20s and returns a clean in-world error, so
+ * the function never rides the clock into a Vercel 504.
  */
-export const config = { maxDuration: 30 }
+export const config = { maxDuration: 60 }
+
+/** Server-side abort for the Anthropic call — the client abort can't stop the
+ *  serverless function, only this can. Well under maxDuration. */
+const GEN_TIMEOUT_MS = 20_000
 
 const FORMAT_KEYS = [
   'yelling_order',
@@ -178,20 +185,43 @@ ${recent.length > 0 ? recent.map((t) => `- ${t}`).join('\n') : '- (nothing yet)'
 Respond with STRICT JSON ONLY: an array of exactly ${count} idea objects with this shape:
 [{"title": string (≤9 words, first-person present tense), "format": one of ${JSON.stringify(FORMAT_KEYS)}, "rarity": one of ${JSON.stringify(RARITIES)} (assigned by viral potential with the distribution rules), "why_now": string (1 line citing the actual trend/date/season), "location_suggestion": string (concrete business or location type, prefer the nearby list), "hooks": [3 alternative titles], "opening_line": string (the first spoken line or question), "difficulty": integer 1-5, "script": {"hook": string (exact opening line/action on camera, 0-3s), "setup": string (where to stand, what to ask, first interaction, 3-10s), "beats": [2-3 short strings for how the bit escalates], "payoff": string (the wholesome ending — tip, reveal, reaction), "pinned_comment": string (the engagement-bait question to pin)}, "inspired_by": string or null (if you remixed a niche reference pattern, name it as "handle (pattern)" e.g. "jaydatroll_ (repetition counter)" or "meta: local-business spotlight"; null if the idea is pure Pablo). This is a behind-the-scenes tag, NOT part of the voice.}]`
 
-    // Right-sized cap: ~3 cards with scripts land near 2.5k tokens; scale with
-    // count and never pay latency for a headroom we discard. (No web_search:
-    // rolls are a single generation call, so this is the whole budget.)
-    const maxTokens = Math.min(4096, 800 + count * 700)
+    // Right-sized cap: 3 cards with full scripts land near ~1.5k tokens; keep a
+    // tight ceiling so a runaway response can't ride the clock. (No web_search:
+    // a roll is a single generation call, so this is the whole token budget.)
+    const maxTokens = Math.min(3200, 700 + count * 550)
 
-    const client = anthropic()
-    const response = await client.messages.create({
-      model: MODEL,
-      max_tokens: maxTokens,
-      // Pablo's DNA leads; the niche style-reference layer is appended as
-      // subordinate inspiration (format/mechanic only, never voice).
-      system: dnaSystemPrompt(undefined, [referenceInspirationPrompt()]),
-      messages: [{ role: 'user', content: userPrompt }],
-    })
+    // Server-side hard timeout: abort the Anthropic call well before Vercel's
+    // function limit so a slow generation returns the visible in-world error
+    // instead of hanging to a 504. This is the guard the client abort cannot be.
+    const ac = new AbortController()
+    const timer = setTimeout(() => ac.abort(), GEN_TIMEOUT_MS)
+
+    let response
+    try {
+      const client = anthropic()
+      // Stream so the request tears down cleanly the instant the abort fires and
+      // we return as soon as the final JSON is assembled.
+      response = await client.messages
+        .stream(
+          {
+            model: MODEL,
+            max_tokens: maxTokens,
+            // Pablo's DNA leads; the niche style-reference layer is appended as
+            // subordinate inspiration (format/mechanic only, never voice).
+            system: dnaSystemPrompt(undefined, [referenceInspirationPrompt()]),
+            messages: [{ role: 'user', content: userPrompt }],
+          },
+          { signal: ac.signal },
+        )
+        .finalMessage()
+    } catch (err) {
+      if (ac.signal.aborted) {
+        throw new HttpError(504, `generation exceeded ${GEN_TIMEOUT_MS / 1000}s — try again`)
+      }
+      throw err
+    } finally {
+      clearTimeout(timer)
+    }
 
     const ideas = extractJson<unknown[]>(textFromContent(response.content))
       .slice(0, count)
