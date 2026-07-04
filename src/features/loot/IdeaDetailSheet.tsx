@@ -23,9 +23,32 @@ export function IdeaDetailSheet({ idea, onClose }: Props) {
   const [script, setScript] = useState<IdeaScript | null>(idea?.script ?? null)
   const [generating, setGenerating] = useState(false)
 
+  // Scripts are no longer generated on the roll (keeps the roll fast). When the
+  // sheet opens on a card without one, lazy-generate it automatically with the
+  // in-line loading state. Showcase/older cards that already have a script skip
+  // straight to displaying it.
   useEffect(() => {
-    setScript(idea?.script ?? null)
-  }, [idea])
+    if (!idea) return
+    if (idea.script) {
+      setScript(idea.script)
+      return
+    }
+    setScript(null)
+    let cancelled = false
+    setGenerating(true)
+    generateScript(idea)
+      .then((s) => {
+        if (cancelled) return
+        setScript(s)
+        attachScript(idea.id, s)
+      })
+      .finally(() => {
+        if (!cancelled) setGenerating(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [idea, attachScript])
 
   if (!idea) return <Sheet open={false} onClose={onClose} />
 

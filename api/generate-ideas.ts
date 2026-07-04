@@ -74,19 +74,6 @@ interface RawIdea {
   inspired_by?: string | null
 }
 
-function validateScript(x: unknown): RawScript | null {
-  if (!x || typeof x !== 'object') return null
-  const o = x as Record<string, unknown>
-  if (typeof o.hook !== 'string') return null
-  return {
-    hook: String(o.hook).slice(0, 300),
-    setup: String(o.setup ?? '').slice(0, 400),
-    beats: Array.isArray(o.beats) ? o.beats.slice(0, 4).map((b) => String(b).slice(0, 200)) : [],
-    payoff: String(o.payoff ?? '').slice(0, 300),
-    pinned_comment: String(o.pinned_comment ?? '').slice(0, 200),
-  }
-}
-
 function validateIdea(x: unknown): RawIdea {
   const o = x as Record<string, unknown>
   if (typeof o?.title !== 'string' || o.title.length === 0) throw new HttpError(502, 'idea missing title')
@@ -103,7 +90,10 @@ function validateIdea(x: unknown): RawIdea {
     opening_line: String(o.opening_line ?? '').slice(0, 300),
     difficulty,
     xp_reward: XP[difficulty],
-    script: validateScript(o.script),
+    // Scripts are intentionally NOT generated on the roll — they roughly double
+    // the output tokens. They're lazy-loaded per card via /api/generate-script
+    // when the user opens the detail sheet. Keep it null here.
+    script: null,
     inspired_by: o.inspired_by ? String(o.inspired_by).slice(0, 80) : null,
   }
 }
@@ -182,40 +172,52 @@ ${places.map((p) => `- ${p.name} (${p.category}, ${p.area})`).join('\n')}
 EXCLUSION LIST — the last ${recent.length} ideas already rolled/accepted. Do NOT generate anything that repeats or closely resembles these (different bit, different angle, different location):
 ${recent.length > 0 ? recent.map((t) => `- ${t}`).join('\n') : '- (nothing yet)'}
 
-Respond with STRICT JSON ONLY: an array of exactly ${count} idea objects with this shape:
-[{"title": string (≤9 words, first-person present tense), "format": one of ${JSON.stringify(FORMAT_KEYS)}, "rarity": one of ${JSON.stringify(RARITIES)} (assigned by viral potential with the distribution rules), "why_now": string (1 line citing the actual trend/date/season), "location_suggestion": string (concrete business or location type, prefer the nearby list), "hooks": [3 alternative titles], "opening_line": string (the first spoken line or question), "difficulty": integer 1-5, "script": {"hook": string (exact opening line/action on camera, 0-3s), "setup": string (where to stand, what to ask, first interaction, 3-10s), "beats": [2-3 short strings for how the bit escalates], "payoff": string (the wholesome ending — tip, reveal, reaction), "pinned_comment": string (the engagement-bait question to pin)}, "inspired_by": string or null (if you remixed a niche reference pattern, name it as "handle (pattern)" e.g. "jaydatroll_ (repetition counter)" or "meta: local-business spotlight"; null if the idea is pure Pablo). This is a behind-the-scenes tag, NOT part of the voice.}]`
+Respond with STRICT JSON ONLY: an array of exactly ${count} idea objects with this shape. Do NOT include a script/beat sheet — just the card:
+[{"title": string (≤9 words, first-person present tense), "format": one of ${JSON.stringify(FORMAT_KEYS)}, "rarity": one of ${JSON.stringify(RARITIES)} (assigned by viral potential with the distribution rules), "why_now": string (1 line citing the actual trend/date/season), "location_suggestion": string (concrete business or location type, prefer the nearby list), "hooks": [3 alternative titles], "opening_line": string (the first spoken line or question), "difficulty": integer 1-5, "inspired_by": string or null (if you remixed a niche reference pattern, name it as "handle (pattern)" e.g. "jaydatroll_ (repetition counter)" or "meta: local-business spotlight"; null if the idea is pure Pablo). This is a behind-the-scenes tag, NOT part of the voice.}]`
 
-    // Right-sized cap: 3 cards with full scripts land near ~1.5k tokens; keep a
-    // tight ceiling so a runaway response can't ride the clock. (No web_search:
-    // a roll is a single generation call, so this is the whole token budget.)
-    const maxTokens = Math.min(3200, 700 + count * 550)
+    // Right-sized cap: cards WITHOUT scripts land near ~600 tokens for 3; keep a
+    // tight ceiling so a runaway response can't ride the clock. (No web_search,
+    // no scripts: a roll is one small generation call.)
+    const maxTokens = Math.min(2000, 400 + count * 320)
 
-    // Server-side hard timeout: abort the Anthropic call well before Vercel's
-    // function limit so a slow generation returns the visible in-world error
-    // instead of hanging to a 504. This is the guard the client abort cannot be.
+    // Server-side hard timeout. Two layers, because in production the abort
+    // signal alone was riding past the deadline to a Vercel 504:
+    //  1) AbortController.signal — asks the SDK to cancel the request.
+    //  2) Promise.race against a timer — GUARANTEES this handler resolves at
+    //     GEN_TIMEOUT_MS and returns the clean in-world error even if (1) is
+    //     ignored by the SDK/runtime. This is what the client abort can never be.
     const ac = new AbortController()
-    const timer = setTimeout(() => ac.abort(), GEN_TIMEOUT_MS)
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => {
+        console.error(`[generate-ideas] internal timeout fired at ${GEN_TIMEOUT_MS}ms — aborting Anthropic call`)
+        ac.abort()
+        reject(new HttpError(504, `generation exceeded ${GEN_TIMEOUT_MS / 1000}s — try again`))
+      }, GEN_TIMEOUT_MS)
+    })
 
     let response
     try {
       const client = anthropic()
-      // Stream so the request tears down cleanly the instant the abort fires and
-      // we return as soon as the final JSON is assembled.
-      response = await client.messages
-        .stream(
-          {
-            model: MODEL,
-            max_tokens: maxTokens,
-            // Pablo's DNA leads; the niche style-reference layer is appended as
-            // subordinate inspiration (format/mechanic only, never voice).
-            system: dnaSystemPrompt(undefined, [referenceInspirationPrompt()]),
-            messages: [{ role: 'user', content: userPrompt }],
-          },
-          { signal: ac.signal },
-        )
-        .finalMessage()
+      const gen = client.messages.create(
+        {
+          model: MODEL,
+          max_tokens: maxTokens,
+          // Pablo's DNA leads; the niche style-reference layer is appended as
+          // subordinate inspiration (format/mechanic only, never voice).
+          system: dnaSystemPrompt(undefined, [referenceInspirationPrompt()]),
+          messages: [{ role: 'user', content: userPrompt }],
+        },
+        { signal: ac.signal, maxRetries: 0 },
+      )
+      // swallow the loser's rejection so an aborted call can't surface as an
+      // unhandled promise rejection after we've already responded
+      gen.catch(() => {})
+      response = await Promise.race([gen, timeout])
     } catch (err) {
-      if (ac.signal.aborted) {
+      // Normalize a signal-honored SDK abort into the same clean 504 the timer
+      // throws, so the response is consistent however the race settles.
+      if (ac.signal.aborted && !(err instanceof HttpError)) {
         throw new HttpError(504, `generation exceeded ${GEN_TIMEOUT_MS / 1000}s — try again`)
       }
       throw err
